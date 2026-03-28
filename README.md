@@ -1,17 +1,60 @@
 # **CGI.JS**
 
-将fastcgi与javascript结合之作。
+###### 一个让你不仅能在本地直接运行，而且能通过FCGI接口作为服务器后端的神奇项目。
 
 
 
-启动参数(支持双-或单-的任意写法，前者为默认):
-mode: repl | fastcgi
+### **简介**
 
-debug: ~
+###### CGI.JS(CJS)将FastCGI与QuickJS-NG结合，提供现代化的JS执行环境：支持.cjs脚本直接执行、支持作为后端接收网络请求处理、支持模块化环境、支持JS/C扩展(C语言扩展API详见[CAPI头文件](./include/cjsapi.h)) 等多种多样的功能。
 
-config: enabled | disabled
 
-extension: enabled | disabled
+
+### **核心特性**
+
+* 类HTML的元素设计模式
+* 类CSS的样式定义（支持border、color、font-size等常用属性）
+* 简化窗口与控件的创建流程
+* 轻量级架构，无额外依赖项
+* 面向对象的API设计，易于理解和使用
+
+
+
+### **快速上手**
+
+##### **环境要求**
+
+* 操作系统：Windows 7 及以上版本
+* 开发工具：Visual Studio 2022+ 或其他支持C/C++最新草案及以上标准以及MSVC扩展的编译器
+
+
+
+##### **安装使用**
+
+* 使用VisualStudio打开.sln文件
+
+
+
+##### **相关文档**
+
+* [CAPI 头文件](./include/cjsapi.h)
+
+
+
+##### **贡献指南**
+
+我们欢迎各种形式的贡献，包括但不限于：
+
+* 提交bug报告与修复方案
+* 提出新功能建议
+* 提交代码PR
+* 完善项目文档/代码等
+
+
+
+### **许可证**
+
+本项目采用MIT许可证开源，详情参见[LICENSE](./LICENSE)文件。
 
 
 
