@@ -1,24 +1,8 @@
-﻿/*
- * CGI.JS - cjs - FCGI for JavaScript
- * v1.0.20260327.01
- * Copyright © 2026 阿袁啊科技(Aliyuan)
- *
- * 本软件采用MIT开源许可证授权，具体条款如下：
- * 1. 任何人可免费获取、使用、复制、修改、合并、发布、分发、再许可及销售本软件的副本；
- * 2. 使用本软件时，必须在所有副本或重要部分中包含上述版权声明及本许可条款；
- * 3. 本软件按“现状”提供，不附带任何明示或暗示的担保，包括但不限于对适销性、特定用途适用性的担保；
- * 4. 在任何情况下，版权持有人均不对因使用本软件导致的任何索赔、损害或其他责任承担法律责任。
- *
- * 本许可条款基于MIT协议（英文原版：https://opensource.org/licenses/MIT）翻译，
- * 若中英文表述存在冲突，以英文原版协议为准。
- *
- * 项目主页：//待定
- * 文档地址：//待定
- */
+﻿
 
 #ifndef AY_CJS_CPP
 #define AY_CJS_CPP
-#define AY_CJS_CPP_VW std::wstring(L"1.0.20260327.01")
+#define AY_CJS_CPP_VW std::wstring(L"1.0.20260328.01")
 #define AY_CJS_CPP_VL []() -> std::wstring { \
     std::wstring s(AY_CJS_CPP_VW); \
     s.erase(std::remove(s.begin(), s.end(), L'.'), s.end()); \
@@ -714,8 +698,6 @@ ProcessExtensionEnd:;
     }
     return result;
 }
-
-
 
 
 #endif // defined(_WIN32) && defined(_WIN64)
