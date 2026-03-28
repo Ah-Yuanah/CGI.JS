@@ -21183,10 +21183,10 @@ bytebuffer:
         return instance->alive();
     }
     static JSV CallFunction(JSContext* ctx, JSV func, JSV thisVal, std::vector<JSV> args, bool isAsync, bool isWait) {
-        return JavaScriptMethod::CallFunction(ctx, func, thisVal, args, isAsync);
+        return JavaScriptMethod::CallFunction(ctx, func, thisVal, args, isAsync, isWait);
     }
     static JSV CallFunction(JSContext* ctx, JSV func, JSV thisVal, int argc, JSValueConst* argv, bool isAsync, bool isWait) {
-        return JavaScriptMethod::CallFunction(ctx, func, thisVal, argc, argv, isAsync);
+        return JavaScriptMethod::CallFunction(ctx, func, thisVal, argc, argv, isAsync, isWait);
     }
 
     #include "../include/cjsapic.hpp"
