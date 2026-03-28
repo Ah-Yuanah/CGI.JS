@@ -1,0 +1,47 @@
+			JSV promise = NewConstructor(ctx, "Promise", [](JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) -> JSValue {
+				if (argumentCount != 1 || !JS_IsFunction(ctx, argumentValues[0])) {
+					JS_ThrowTypeError(ctx, ("Promise resolver " + GetTypeString(ctx, argumentValues[0]) + " is not a function").c_str());
+					return JS_EXCEPTION;
+				}
+				 
+				JSV resolver = JSV(ctx, &argumentValues[0]).cget(1).cset(1);
+				Promise promise = NewPromise(ctx);
+
+				std::thread([=](){
+					JSV internal = NewObject(ctx, resolver, "internal");
+					SetAttribute(ctx, internal, "_isPrivate", NewBool(ctx, true));
+					SetAttribute(ctx, internal, "resolve", promise.resolve);
+					SetAttribute(ctx, internal, "reject", promise.reject);
+					SetAttribute(ctx, internal, "promise", promise.promise);
+					JSV resolve = NewFunction(ctx, "resolve", [](JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues)->JSValue{
+						JSV internal = GetProperty(ctx, thisVal, "internal");
+						CallFunction(ctx, GetProperty(ctx, internal, "resolve"), GetProperty(ctx, internal, "promise"), argumentCount, argumentValues);
+						return JS_UNDEFINED;
+						});
+					JSV reject = NewFunction(ctx, "reject", [](JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues)->JSValue{
+						return JS_UNDEFINED;
+						});
+					CallFunction(ctx, resolver, promise.promise, { {resolve},{reject} });
+					}).detach();
+
+				return promise.promise.get(1);
+				});
+			SetAttribute(ctx, global, "Promise", promise);
+
+
+				JSV originalPromise = GetProperty(ctx, internal, "promise");
+				JSPromiseStateEnum state = JS_PromiseState(ctx, originalPromise.get(0));
+				JSV then_isProcessed = {};
+				if (!ReadObjectProperty(ctx, internal, "isProcessed", then_isProcessed)) {
+					if (state == JS_PROMISE_FULFILLED) {
+						SetAttribute(ctx, internal, "isProcessed", NewBool(ctx, true));
+						std::vector<JSV> savedResult = {};
+						ReadJSValueAsArray(ctx, GetProperty(ctx, internal, "result"), savedResult);
+						CallFunction(ctx, GetProperty(ctx, internal, "newResolve"), originalPromise, savedResult);
+					}
+					else if (state == JS_PROMISE_REJECTED) {
+						std::vector<JSV> savedResult = {};
+						ReadJSValueAsArray(ctx, GetProperty(ctx, internal, "result"), savedResult);
+						CallFunction(ctx, GetProperty(ctx, internal, "newReject"), originalPromise, savedResult);
+					}
+				}
