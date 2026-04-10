@@ -304,6 +304,12 @@ namespace cjs {
     std::string platform = "unknown";
 #endif
 
+#if defined(_DEBUG)
+    std::wstring cplatform = L"d";
+#else
+    std::wstring cplatform = L"r";
+#endif
+
     std::string mode = "";
     HWND console = NULL;
     std::atomic<bool> isWTConsole = false;
@@ -8788,12 +8794,12 @@ namespace cjs {
             SetAttribute(ctx, request, "workDirectory", "");
             SetAttribute(ctx, request, "url", "");
             SetAttribute(ctx, request, "method", "");
-            SetAttribute(ctx, request, "header", "");
+            SetAttribute(ctx, request, "header", NewObject(ctx));
             SetAttribute(ctx, request, "body", "");
 
             JSV response = NewObject(ctx, network, "response");
             SetSymbolName(ctx, response, "ResponstNetwork");
-            SetAttribute(ctx, response, "header", "");
+            SetAttribute(ctx, response, "header", NewObject(ctx));
             SetAttribute(ctx, response, "body", "");
 
             AppendMethod(ctx, global, "include", [](JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues)->JSValue {

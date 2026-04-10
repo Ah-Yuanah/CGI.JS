@@ -2,7 +2,7 @@
 
 #ifndef AY_CJS_CPP
 #define AY_CJS_CPP
-#define AY_CJS_CPP_VW std::wstring(L"1.0.20260328.01")
+#define AY_CJS_CPP_VW std::wstring(L"1.0.20260410.01")
 #define AY_CJS_CPP_VL []() -> std::wstring { \
     std::wstring s(AY_CJS_CPP_VW); \
     s.erase(std::remove(s.begin(), s.end(), L'.'), s.end()); \
@@ -18,7 +18,7 @@ using namespace cjs;
 int Main() {
     mode = "repl";
 
-    int consoleResult = CreateConsole(L"CGI.JS - r" + AY_CJS_CPP_VW + L"");
+    int consoleResult = CreateConsole(L"CGI.JS - " + cplatform + AY_CJS_CPP_VW + L"");
     if (consoleResult == -1) {
         return EXIT_SUCCESS;
     }
@@ -43,7 +43,7 @@ int Main() {
         return EXIT_FAILURE;
     }
 
-    CreateOutput(L"Welcome to Cgi.js r" + AY_CJS_CPP_VW + L"\n");
+    CreateOutput(L"Welcome to Cgi.js " + cplatform + AY_CJS_CPP_VW + L"\n");
     CreateOutput(L"Type \"", GetColorValue(L"Default"));
     CreateOutput(L"system.help()", GetColorValue(L"Function"));
     CreateOutput(L"\" for more information.\n", GetColorValue(L"Default"));
@@ -700,5 +700,5 @@ ProcessExtensionEnd:;
 }
 
 
-#endif // defined(_WIN32) && defined(_WIN64)
+#endif // defined(_WIN32)
 #endif // AY_CJS_CPP
