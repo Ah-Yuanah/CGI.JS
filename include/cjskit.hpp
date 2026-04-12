@@ -6580,6 +6580,16 @@ namespace cjs {
 
     class XMLHttpRequest {
     public:
+        struct XMLHttpRequestUpload {
+            XHRPROGRESSCALLBACK onloadstart = nullptr;
+            XHRPROGRESSCALLBACK onprogress = nullptr;
+            XHRPROGRESSCALLBACK onload = nullptr;
+            XHRPROGRESSCALLBACK onloadend = nullptr;
+            XHRPROGRESSCALLBACK onabort = nullptr;
+            XHRPROGRESSCALLBACK onerror = nullptr;
+            XHRPROGRESSCALLBACK ontimeout = nullptr;
+        };
+
         ~XMLHttpRequest() noexcept { release(); }
 
         XHRReadyState readyState = XHRReadyState::UNSENT;
@@ -6606,13 +6616,7 @@ namespace cjs {
         XHRPROGRESSCALLBACK onloadstart = nullptr;
         XHRPROGRESSCALLBACK onheadersreceived = nullptr;
 
-        XHRPROGRESSCALLBACK onuploadstart = nullptr;
-        XHRPROGRESSCALLBACK onuploadprogress = nullptr;
-        XHRPROGRESSCALLBACK onuploadload = nullptr;
-        XHRPROGRESSCALLBACK onuploadend = nullptr;
-        XHRPROGRESSCALLBACK onuploadabort = nullptr;
-        XHRPROGRESSCALLBACK onuploaderror = nullptr;
-        XHRPROGRESSCALLBACK onuploadtimeout = nullptr;
+        XMLHttpRequestUpload upload;
 
         bool isOpened() { return readyState != XHRReadyState::UNSENT; }
         bool isResponsed() { return readyState == XHRReadyState::HEADERS_RECEIVED || readyState == XHRReadyState::LOADING || readyState == XHRReadyState::DONE; }
@@ -6705,17 +6709,20 @@ namespace cjs {
                     DWORD dwError = GetLastError();
                     event.errorCode = dwError;
                     event.errorMessage = GetErrorMessageFromErrorCode(dwError);
-                    onError();
-                    if (dwError == ERROR_WINHTTP_TIMEOUT && ontimeout) ontimeout(event);
-                    if (dwError == ERROR_WINHTTP_TIMEOUT && onuploadtimeout) {
+
+                    if (dwError == ERROR_WINHTTP_TIMEOUT) {
+                        if (ontimeout) ontimeout(event);
                         uploadEvent.errorCode = dwError;
-                        uploadEvent.errorMessage = GetErrorMessageFromErrorCode(dwError);
-                        onuploadtimeout(uploadEvent);
+                        uploadEvent.errorMessage = event.errorMessage;
+                        if (upload.ontimeout) upload.ontimeout(uploadEvent);
                     }
+
+                    onError();
                     WinHttpCloseHandleSafely(hConnect);
                     WinHttpCloseHandleSafely(hSession);
-                    if (onloadend) onloadend(event);
-                    if (onuploadend) onuploadend(uploadEvent);
+
+                    uploadEvent = {};
+                    if (upload.onloadend) upload.onloadend(uploadEvent);
                     return false;
                 }
 
@@ -6733,18 +6740,25 @@ namespace cjs {
                     DWORD dwError = GetLastError();
                     event.errorCode = dwError;
                     event.errorMessage = GetErrorMessageFromErrorCode(dwError);
-                    onError();
-                    if (dwError == ERROR_WINHTTP_TIMEOUT && ontimeout) ontimeout(event);
-                    if (dwError == ERROR_WINHTTP_TIMEOUT && onuploadtimeout) {
+
+                    if (dwError == ERROR_WINHTTP_TIMEOUT) {
+                        if (ontimeout) ontimeout(event);
                         uploadEvent.errorCode = dwError;
-                        uploadEvent.errorMessage = GetErrorMessageFromErrorCode(dwError);
-                        onuploadtimeout(uploadEvent);
+                        uploadEvent.errorMessage = event.errorMessage;
+                        if (upload.ontimeout) upload.ontimeout(uploadEvent);
                     }
+
+                    uploadEvent.errorCode = dwError;
+                    uploadEvent.errorMessage = event.errorMessage;
+                    if (upload.onerror) upload.onerror(uploadEvent);
+
+                    onError();
                     WinHttpCloseHandleSafely(hRequest);
                     WinHttpCloseHandleSafely(hConnect);
                     WinHttpCloseHandleSafely(hSession);
-                    if (onloadend) onloadend(event);
-                    if (onuploadend) onuploadend(uploadEvent);
+
+                    uploadEvent = {};
+                    if (upload.onloadend) upload.onloadend(uploadEvent);
                     return false;
                 }
 
@@ -6786,32 +6800,33 @@ namespace cjs {
                     DWORD dwError = GetLastError();
                     event.errorCode = dwError;
                     event.errorMessage = GetErrorMessageFromErrorCode(dwError);
+
+                    uploadEvent.errorCode = dwError;
+                    uploadEvent.errorMessage = event.errorMessage;
+                    if (upload.onerror) upload.onerror(uploadEvent);
+
                     onError();
-                    if (dwError == ERROR_WINHTTP_TIMEOUT && ontimeout) ontimeout(event);
-                    if (onuploaderror) {
-                        uploadEvent.errorCode = dwError;
-                        uploadEvent.errorMessage = GetErrorMessageFromErrorCode(dwError);
-                        onuploaderror(uploadEvent);
-                    }
                     WinHttpCloseHandleSafely(hRequest);
                     WinHttpCloseHandleSafely(hConnect);
                     WinHttpCloseHandleSafely(hSession);
-                    if (onloadend) onloadend(event);
-                    if (onuploadend) onuploadend(uploadEvent);
+
+                    uploadEvent = {};
+                    if (upload.onloadend) upload.onloadend(uploadEvent);
                     return false;
                 }
 
                 if (onloadstart)
                     onloadstart(event);
 
+                bool uploadSuccess = false;
                 if (totalLength > 0) {
                     uploadEvent = {};
                     uploadEvent.total = totalLength;
                     uploadLoaded = 0;
                     uploadTotal = totalLength;
 
-                    if (onuploadstart)
-                        onuploadstart(uploadEvent);
+                    if (upload.onloadstart)
+                        upload.onloadstart(uploadEvent);
 
                     DWORD totalWritten = 0;
                     const DWORD chunkSize = 4096;
@@ -6825,17 +6840,18 @@ namespace cjs {
                             DWORD dwError = GetLastError();
                             event.errorCode = dwError;
                             event.errorMessage = GetErrorMessageFromErrorCode(dwError);
+
+                            uploadEvent.errorCode = dwError;
+                            uploadEvent.errorMessage = event.errorMessage;
+                            if (upload.onerror) upload.onerror(uploadEvent);
+
                             onError();
-                            if (onuploaderror) {
-                                uploadEvent.errorCode = dwError;
-                                uploadEvent.errorMessage = GetErrorMessageFromErrorCode(dwError);
-                                onuploaderror(uploadEvent);
-                            }
                             WinHttpCloseHandleSafely(hRequest);
                             WinHttpCloseHandleSafely(hConnect);
                             WinHttpCloseHandleSafely(hSession);
-                            if (onloadend) onloadend(event);
-                            if (onuploadend) onuploadend(uploadEvent);
+
+                            uploadEvent = {};
+                            if (upload.onloadend) upload.onloadend(uploadEvent);
                             return false;
                         }
 
@@ -6843,17 +6859,25 @@ namespace cjs {
                         uploadEvent.loaded = totalWritten;
                         uploadLoaded = totalWritten;
 
-                        if (onuploadprogress)
-                            onuploadprogress(uploadEvent);
+                        if (upload.onprogress)
+                            upload.onprogress(uploadEvent);
                     }
 
-                    if (!isAborted && totalWritten == totalLength && onuploadload)
-                        onuploadload(uploadEvent);
-                    if (onuploadend)
-                        onuploadend(uploadEvent);
+                    if (!isAborted && totalWritten == totalLength) {
+                        uploadSuccess = true;
+                        if (upload.onload)
+                            upload.onload(uploadEvent);
+                    }
                 }
 
+                if (upload.onloadend)
+                    upload.onloadend(uploadEvent);
+
                 if (isAborted) {
+                    uploadEvent = {};
+                    if (upload.onabort) upload.onabort(uploadEvent);
+                    if (upload.onloadend) upload.onloadend(uploadEvent);
+
                     WinHttpCloseHandleSafely(hRequest);
                     WinHttpCloseHandleSafely(hConnect);
                     WinHttpCloseHandleSafely(hSession);
@@ -6871,7 +6895,6 @@ namespace cjs {
                     WinHttpCloseHandleSafely(hConnect);
                     WinHttpCloseHandleSafely(hSession);
                     if (onloadend) onloadend(event);
-                    if (onuploadend) onuploadend(uploadEvent);
                     return false;
                 }
 
@@ -6891,12 +6914,10 @@ namespace cjs {
                     event.errorCode = dwError;
                     event.errorMessage = GetErrorMessageFromErrorCode(dwError);
                     onError();
-                    if (dwError == ERROR_WINHTTP_TIMEOUT && ontimeout) ontimeout(event);
                     WinHttpCloseHandleSafely(hRequest);
                     WinHttpCloseHandleSafely(hConnect);
                     WinHttpCloseHandleSafely(hSession);
                     if (onloadend) onloadend(event);
-                    if (onuploadend) onuploadend(uploadEvent);
                     return false;
                 }
 
@@ -6997,18 +7018,18 @@ namespace cjs {
                 WinHttpCloseHandleSafely(hRequest);
                 WinHttpCloseHandleSafely(hConnect);
                 WinHttpCloseHandleSafely(hSession);
-                if (onerror) {
-                    event.errorCode = -1;
-                    event.errorMessage = L"Unknown exception occurred";
-                    onerror(event);
-                }
-                if (onuploaderror) {
-                    uploadEvent.errorCode = -1;
-                    uploadEvent.errorMessage = L"Unknown exception occurred";
-                    onuploaderror(uploadEvent);
-                }
+
+                event.errorCode = -1;
+                event.errorMessage = L"Unknown exception occurred";
+                if (onerror) onerror(event);
+
+                uploadEvent.errorCode = -1;
+                uploadEvent.errorMessage = L"Unknown exception occurred";
+                if (upload.onerror) upload.onerror(uploadEvent);
+
+                uploadEvent = {};
+                if (upload.onloadend) upload.onloadend(uploadEvent);
                 if (onloadend) onloadend(event);
-                if (onuploadend) onuploadend(uploadEvent);
                 return false;
             }
         }
@@ -7016,14 +7037,30 @@ namespace cjs {
         void abort(bool mode = false) noexcept {
             if (isAborted) return;
             isAborted = true;
-            WinHttpCloseHandleSafely(hRequest); WinHttpCloseHandleSafely(hConnect); WinHttpCloseHandleSafely(hSession);
+            WinHttpCloseHandleSafely(hRequest);
+            WinHttpCloseHandleSafely(hConnect);
+            WinHttpCloseHandleSafely(hSession);
+
+            uploadEvent = {};
+            if (upload.onabort) upload.onabort(uploadEvent);
+            if (upload.onloadend) upload.onloadend(uploadEvent);
+
             if (!mode) {
                 XHRReadyState oldState = readyState;
-                readyState = XHRReadyState::DONE; status = 0; statusText = L"";
-                if (onabort) { event.loaded = loaded; event.total = _wtoi64(getResponseHeader(L"Content-Length").c_str()); onabort(event); }
+                readyState = XHRReadyState::DONE;
+                status = 0;
+                statusText = L"";
+
+                if (onabort) {
+                    event.loaded = loaded;
+                    event.total = _wtoi64(getResponseHeader(L"Content-Length").c_str());
+                    onabort(event);
+                }
                 onClean(true);
-                if (onreadystatechange && oldState != XHRReadyState::DONE) onreadystatechange();
-                if (onloadend) onloadend(event);
+                if (onreadystatechange && oldState != XHRReadyState::DONE)
+                    onreadystatechange();
+                if (onloadend)
+                    onloadend(event);
             }
         }
 
@@ -7036,7 +7073,8 @@ namespace cjs {
                 requestHeaders[headerName] = headerValue;
             }
             return true;
-        }		bool hasRequestHeader(const std::wstring& headerName) noexcept {
+        }
+        bool hasRequestHeader(const std::wstring& headerName) noexcept {
             if (!isOpened()) return false;
             return requestHeaders.count(headerName) > 0;
         }
@@ -7068,13 +7106,13 @@ namespace cjs {
 
         void overrideMimeType(std::wstring mimeType) { mimeTypeOverride = mimeType; }
         void release() noexcept {
-            abort(true); onClean(false);
+            abort(true);
+            onClean(false);
             onreadystatechange = onload = nullptr;
             onloadend = onabort = onprogress = onerror = ontimeout = nullptr;
             onrelease = nullptr;
             onloadstart = onheadersreceived = nullptr;
-            onuploadstart = onuploadprogress = onuploadload = onuploadend = nullptr;
-            onuploadabort = onuploaderror = onuploadtimeout = nullptr;
+            upload = {};
             if (onrelease) onrelease();
         }
 
@@ -7099,13 +7137,29 @@ namespace cjs {
         std::wstring mimeTypeOverride = L"";
 
         void onClean(bool preserveState = false) {
-            if (!preserveState) { readyState = XHRReadyState::UNSENT; status = 0; statusText = L""; }
-            response.clear(); responseText.clear(); responseType.clear();
-            timeout = 0.0; loaded = total = uploadLoaded = uploadTotal = 0;
-            method = L"GET"; urlInfo = {}; isAsync = true;
-            authUser.clear(); authPassword.clear(); requestHeaders.clear(); responseHeaders.clear();
-            bodyTemp.clear(); formDataTemp.clear(); event = {}; uploadEvent = {};
-            isTimeout = false; mimeTypeOverride.clear();
+            if (!preserveState) {
+                readyState = XHRReadyState::UNSENT;
+                status = 0;
+                statusText = L"";
+            }
+            response.clear();
+            responseText.clear();
+            responseType.clear();
+            timeout = 0.0;
+            loaded = total = uploadLoaded = uploadTotal = 0;
+            method = L"GET";
+            urlInfo = {};
+            isAsync = true;
+            authUser.clear();
+            authPassword.clear();
+            requestHeaders.clear();
+            responseHeaders.clear();
+            bodyTemp.clear();
+            formDataTemp.clear();
+            event = {};
+            uploadEvent = {};
+            isTimeout = false;
+            mimeTypeOverride.clear();
             if (!preserveState) isAborted = false;
             hSession = hConnect = hRequest = NULL;
         }
@@ -7117,15 +7171,19 @@ namespace cjs {
         }
 
         void onError() {
-            readyState = XHRReadyState::DONE; status = 0; statusText = L"";
+            if (status == 0) {
+                readyState = XHRReadyState::DONE;
+                statusText = L"";
+            }
             if (onerror) onerror(event);
-            if (onloadend) onloadend(event);
         }
 
         void onFinish() {
             changeReadyState(XHRReadyState::DONE);
             if (onload) onload();
-            WinHttpCloseHandleSafely(hRequest); WinHttpCloseHandleSafely(hConnect); WinHttpCloseHandleSafely(hSession);
+            WinHttpCloseHandleSafely(hRequest);
+            WinHttpCloseHandleSafely(hConnect);
+            WinHttpCloseHandleSafely(hSession);
             if (onloadend) onloadend(event);
         }
 
@@ -9291,13 +9349,12 @@ bytebuffer:
                 };
 
             auto onload = [=](JSV callback) {
-
                 JSV callbackValue = NewObject(ctx);
                 SetSymbolName(ctx, callbackValue, "ProgressEvent");
 
                 SetAttribute(ctx, callbackValue, "type", NewString(ctx, "load"));
-                SetAttribute(ctx, callbackValue, "loaded", NewUint64(ctx, xhr->loaded));
-                SetAttribute(ctx, callbackValue, "total", NewUint64(ctx, xhr->total));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(xhr->loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, static_cast<double>(xhr->total)));
                 SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, (xhr->total != 0) ? true : false));
                 SetAttribute(ctx, callbackValue, "target", returnValue);
 
@@ -9306,18 +9363,28 @@ bytebuffer:
             xhr->onload = [=](...) {
                 onload(GetProperty(ctx, returnValue, "onload"));
                 };
-            xhr->onuploadload = [=](...) {
-                onload(GetProperty(ctx, returnValue, { {"upload"}, {"onload"} }));
-                onload(GetProperty(ctx, returnValue, "onload"));
+
+            auto onuploadload = [=](const XHRPROGRESSEVENT& e) {
+                JSV callbackValue = NewObject(ctx);
+                SetSymbolName(ctx, callbackValue, "ProgressEvent");
+                SetAttribute(ctx, callbackValue, "type", NewString(ctx, "load"));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(e.loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, static_cast<double>(e.total)));
+                SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, e.total != 0));
+                SetAttribute(ctx, callbackValue, "target", returnValue);
+                JSV callback = GetProperty(ctx, returnValue, { {"upload"}, {"onload"} });
+                if (callback.isValid() && JS_IsFunction(ctx, callback.get(0)))
+                    CallFunction(ctx, callback, returnValue, { {callbackValue} }, true);
                 };
+            xhr->upload.onload = onuploadload;
 
             auto onloadstart = [=](JSV callback) {
                 JSV callbackValue = NewObject(ctx);
                 SetSymbolName(ctx, callbackValue, "ProgressEvent");
 
                 SetAttribute(ctx, callbackValue, "type", NewString(ctx, "loadstart"));
-                SetAttribute(ctx, callbackValue, "loaded", NewUint64(ctx, 0));
-                SetAttribute(ctx, callbackValue, "total", NewUint64(ctx, 0));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, 0.0));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, 0.0));
                 SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, false));
                 SetAttribute(ctx, callbackValue, "target", returnValue);
 
@@ -9326,10 +9393,20 @@ bytebuffer:
             xhr->onloadstart = [=](...) {
                 onloadstart(GetProperty(ctx, returnValue, "onloadstart"));
                 };
-            xhr->onuploadstart = [=](...) {
-                onloadstart(GetProperty(ctx, returnValue, { {"upload"}, {"onloadstart"} }));
-                onloadstart(GetProperty(ctx, returnValue, "onloadstart"));
+
+            auto onuploadstart = [=](const XHRPROGRESSEVENT& e) {
+                JSV callbackValue = NewObject(ctx);
+                SetSymbolName(ctx, callbackValue, "ProgressEvent");
+                SetAttribute(ctx, callbackValue, "type", NewString(ctx, "loadstart"));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(e.loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, static_cast<double>(e.total)));
+                SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, false));
+                SetAttribute(ctx, callbackValue, "target", returnValue);
+                JSV callback = GetProperty(ctx, returnValue, { {"upload"}, {"onloadstart"} });
+                if (callback.isValid() && JS_IsFunction(ctx, callback.get(0)))
+                    CallFunction(ctx, callback, returnValue, { {callbackValue} }, true);
                 };
+            xhr->upload.onloadstart = onuploadstart;
 
             auto onprogress = [=](JSV callback) {
                 std::string responseType = "";
@@ -9358,8 +9435,8 @@ bytebuffer:
                 SetSymbolName(ctx, callbackValue, "ProgressEvent");
 
                 SetAttribute(ctx, callbackValue, "type", NewString(ctx, "progress"));
-                SetAttribute(ctx, callbackValue, "loaded", NewUint64(ctx, xhr->loaded));
-                SetAttribute(ctx, callbackValue, "total", NewUint64(ctx, xhr->total));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(xhr->loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, static_cast<double>(xhr->total)));
                 SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, (xhr->total != 0) ? true : false));
                 SetAttribute(ctx, callbackValue, "target", returnValue);
 
@@ -9368,17 +9445,28 @@ bytebuffer:
             xhr->onprogress = [=](...) {
                 onprogress(GetProperty(ctx, returnValue, "onprogress"));
                 };
-            xhr->onuploadprogress = [=](...) {
-                onprogress(GetProperty(ctx, returnValue, { {"upload"}, {"onprogress"} }));
+
+            auto onuploadprogress = [=](const XHRPROGRESSEVENT& e) {
+                JSV callbackValue = NewObject(ctx);
+                SetSymbolName(ctx, callbackValue, "ProgressEvent");
+                SetAttribute(ctx, callbackValue, "type", NewString(ctx, "progress"));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(e.loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, static_cast<double>(e.total)));
+                SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, e.total != 0));
+                SetAttribute(ctx, callbackValue, "target", returnValue);
+                JSV callback = GetProperty(ctx, returnValue, { {"upload"}, {"onprogress"} });
+                if (callback.isValid() && JS_IsFunction(ctx, callback.get(0)))
+                    CallFunction(ctx, callback, returnValue, { {callbackValue} }, true);
                 };
+            xhr->upload.onprogress = onuploadprogress;
 
             auto onerror = [=](JSV callback) {
                 JSV callbackValue = NewObject(ctx);
                 SetSymbolName(ctx, callbackValue, "ProgressEvent");
 
                 SetAttribute(ctx, callbackValue, "type", NewString(ctx, "error"));
-                SetAttribute(ctx, callbackValue, "loaded", NewUint64(ctx, xhr->loaded));
-                SetAttribute(ctx, callbackValue, "total", NewUint64(ctx, 0));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(xhr->loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, 0.0));
                 SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, false));
                 SetAttribute(ctx, callbackValue, "target", returnValue);
 
@@ -9387,18 +9475,28 @@ bytebuffer:
             xhr->onerror = [=](...) {
                 onerror(GetProperty(ctx, returnValue, "onerror"));
                 };
-            xhr->onuploaderror = [=](...) {
-                onerror(GetProperty(ctx, returnValue, { {"upload"}, {"onerror"} }));
-                onerror(GetProperty(ctx, returnValue, "onerror"));
+
+            auto onuploaderror = [=](const XHRPROGRESSEVENT& e) {
+                JSV callbackValue = NewObject(ctx);
+                SetSymbolName(ctx, callbackValue, "ProgressEvent");
+                SetAttribute(ctx, callbackValue, "type", NewString(ctx, "error"));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(e.loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, static_cast<double>(e.total)));
+                SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, false));
+                SetAttribute(ctx, callbackValue, "target", returnValue);
+                JSV callback = GetProperty(ctx, returnValue, { {"upload"}, {"onerror"} });
+                if (callback.isValid() && JS_IsFunction(ctx, callback.get(0)))
+                    CallFunction(ctx, callback, returnValue, { {callbackValue} }, true);
                 };
+            xhr->upload.onerror = onuploaderror;
 
             auto ontimeout = [=](JSV callback) {
                 JSV callbackValue = NewObject(ctx);
                 SetSymbolName(ctx, callbackValue, "ProgressEvent");
 
                 SetAttribute(ctx, callbackValue, "type", NewString(ctx, "timeout"));
-                SetAttribute(ctx, callbackValue, "loaded", NewUint64(ctx, xhr->loaded));
-                SetAttribute(ctx, callbackValue, "total", NewUint64(ctx, 0));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(xhr->loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, 0.0));
                 SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, false));
                 SetAttribute(ctx, callbackValue, "target", returnValue);
 
@@ -9407,18 +9505,28 @@ bytebuffer:
             xhr->ontimeout = [=](...) {
                 ontimeout(GetProperty(ctx, returnValue, "ontimeout"));
                 };
-            xhr->onuploadtimeout = [=](...) {
-                ontimeout(GetProperty(ctx, returnValue, { {"upload"}, {"ontimeout"} }));
-                ontimeout(GetProperty(ctx, returnValue, "ontimeout"));
+
+            auto onuploadtimeout = [=](const XHRPROGRESSEVENT& e) {
+                JSV callbackValue = NewObject(ctx);
+                SetSymbolName(ctx, callbackValue, "ProgressEvent");
+                SetAttribute(ctx, callbackValue, "type", NewString(ctx, "timeout"));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(e.loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, static_cast<double>(e.total)));
+                SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, false));
+                SetAttribute(ctx, callbackValue, "target", returnValue);
+                JSV callback = GetProperty(ctx, returnValue, { {"upload"}, {"ontimeout"} });
+                if (callback.isValid() && JS_IsFunction(ctx, callback.get(0)))
+                    CallFunction(ctx, callback, returnValue, { {callbackValue} }, true);
                 };
+            xhr->upload.ontimeout = onuploadtimeout;
 
             auto onabort = [=](JSV callback) {
                 JSV callbackValue = NewObject(ctx);
                 SetSymbolName(ctx, callbackValue, "ProgressEvent");
 
                 SetAttribute(ctx, callbackValue, "type", NewString(ctx, "abort"));
-                SetAttribute(ctx, callbackValue, "loaded", NewUint64(ctx, xhr->loaded));
-                SetAttribute(ctx, callbackValue, "total", NewUint64(ctx, 0));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(xhr->loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, 0.0));
                 SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, false));
                 SetAttribute(ctx, callbackValue, "target", returnValue);
 
@@ -9427,13 +9535,22 @@ bytebuffer:
             xhr->onabort = [=](...) {
                 onabort(GetProperty(ctx, returnValue, "onabort"));
                 };
-            xhr->onuploadabort = [=](...) {
-                onabort(GetProperty(ctx, returnValue, { {"upload"}, {"onabort"} }));
-                onabort(GetProperty(ctx, returnValue, "onabort"));
+
+            auto onuploadabort = [=](const XHRPROGRESSEVENT& e) {
+                JSV callbackValue = NewObject(ctx);
+                SetSymbolName(ctx, callbackValue, "ProgressEvent");
+                SetAttribute(ctx, callbackValue, "type", NewString(ctx, "abort"));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(e.loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, static_cast<double>(e.total)));
+                SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, false));
+                SetAttribute(ctx, callbackValue, "target", returnValue);
+                JSV callback = GetProperty(ctx, returnValue, { {"upload"}, {"onabort"} });
+                if (callback.isValid() && JS_IsFunction(ctx, callback.get(0)))
+                    CallFunction(ctx, callback, returnValue, { {callbackValue} }, true);
                 };
+            xhr->upload.onabort = onuploadabort;
 
             auto onloadend = [=](XHRPROGRESSEVENT event, JSV callback) {
-
                 std::string responseType = "";
                 ReadJSValueAsString(ctx, GetProperty(ctx, returnValue, "responseType"), responseType);
                 responseType = wstringToString(ToDownLetters(stringToWstring(responseType)));
@@ -9460,8 +9577,8 @@ bytebuffer:
                 SetSymbolName(ctx, callbackValue, "ProgressEvent");
 
                 SetAttribute(ctx, callbackValue, "type", NewString(ctx, "loadend"));
-                SetAttribute(ctx, callbackValue, "loaded", NewUint64(ctx, event.loaded));
-                SetAttribute(ctx, callbackValue, "total", NewUint64(ctx, event.total));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, static_cast<double>(event.loaded)));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, static_cast<double>(event.total)));
                 SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, event.lengthComputable));
                 SetAttribute(ctx, callbackValue, "target", returnValue);
 
@@ -9470,18 +9587,19 @@ bytebuffer:
             xhr->onloadend = [=](XHRPROGRESSEVENT event) {
                 onloadend(event, GetProperty(ctx, returnValue, "onloadend"));
                 };
-            xhr->onuploadend = [=](XHRPROGRESSEVENT event) {
+
+            auto onuploadend = [=](XHRPROGRESSEVENT event) {
                 onloadend(event, GetProperty(ctx, returnValue, { {"upload"}, {"onloadend"} }));
-                onloadend(event, GetProperty(ctx, returnValue, "onloadend"));
                 };
+            xhr->upload.onloadend = onuploadend;
 
             xhr->onheadersreceived = [=](...) {
                 JSV callbackValue = NewObject(ctx);
                 SetSymbolName(ctx, callbackValue, "ProgressEvent");
 
                 SetAttribute(ctx, callbackValue, "type", NewString(ctx, "headersreceived"));
-                SetAttribute(ctx, callbackValue, "loaded", NewUint64(ctx, 0));
-                SetAttribute(ctx, callbackValue, "total", NewUint64(ctx, 0));
+                SetAttribute(ctx, callbackValue, "loaded", NewNumber(ctx, 0.0));
+                SetAttribute(ctx, callbackValue, "total", NewNumber(ctx, 0.0));
                 SetAttribute(ctx, callbackValue, "lengthComputable", NewBool(ctx, false));
                 SetAttribute(ctx, callbackValue, "target", returnValue);
 
@@ -9649,12 +9767,6 @@ bytebuffer:
                             JS_ThrowInternalError(ctx, "[network.http.open->send] The Blob instance is invalid");
                             return JS_EXCEPTION;
                         }
-
-                        //JSV js_type = GetProperty(ctx, js_body, "type");
-                        //std::string type = "";
-                        //if (js_type.isValid() && ReadJSValueAsString(ctx, js_type, type)) {
-                        //	xhr->setRequestHeader(L"Content-Type", stringToWstring(type));
-                        //}
 
                         if (!isAsync) xhr->send(tempBinary);
                         else {
