@@ -1061,7 +1061,7 @@ extern "C" {
             }
             argument.push_back(arg);
         }
-        return static_cast<CJSID>(jsm::addTask(ctx, task, thisValue, argument));
+        return static_cast<CJSID>(jsm::AddTask(ctx, task, thisValue, argument));
     }
     CAEXP bool CJS_RemoveTask(CJSVERSION version, CJSContext in_ctx, CJSID in_taskId) {
         JSContext* ctx = (JSContext*)in_ctx;

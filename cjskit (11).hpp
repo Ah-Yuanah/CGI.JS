@@ -3136,10 +3136,13 @@ namespace cjs {
     GMT GetCodeColor(std::wstring code) {
         GMT colorMap;
         if (code.empty()) return colorMap;
+
+        // ========== 新增：null/NaN/undefined 检测正则（优先匹配） ==========
         const std::wregex specialValueRegex(
-            LR"(\b(null|NaN|undefined)\b)",
+            LR"(\b(null|NaN|undefined)\b)",  // 单词边界匹配，避免匹配到包含这些字符的其他单词
             std::regex_constants::optimize | std::regex_constants::icase
         );
+        // 原生函数匹配正则（保留优化后的版本）
         const std::wregex funcRegex(
             LR"((function\s+(\w+)\s*\([\s\S]*?\)\s*\{[\s\S]*?\[native code\][\s\S]*?\}))",
             std::regex_constants::optimize
@@ -3147,34 +3150,43 @@ namespace cjs {
 
         std::wsmatch match;
         std::wstring remainingCode = code;
+        // 第一步：优先处理 null/NaN/undefined
         while (std::regex_search(remainingCode, match, specialValueRegex)) {
+            // 1. 处理匹配前的未识别内容（默认DarkGray）
             if (match.position() > 0) {
                 std::wstring unMatched = remainingCode.substr(0, match.position());
                 colorMap[unMatched] = L"DarkGray";
             }
+            // 2. 处理 null/NaN/undefined（强制DarkGray）
             std::wstring specialValue = match[1].str();
             colorMap[specialValue] = L"DarkGray";
+            // 3. 更新剩余文本
             size_t matchEndPos = match.position() + match.length();
             remainingCode = remainingCode.substr(matchEndPos);
             if (remainingCode.empty()) break;
         }
 
+        // 第二步：处理原生函数（复用之前优化的逻辑）
         std::wsmatch funcMatch;
         while (std::regex_search(remainingCode, funcMatch, funcRegex)) {
+            // 1. 处理函数匹配前的未识别内容（默认Gray）
             if (funcMatch.position() > 0) {
                 std::wstring unMatched = remainingCode.substr(0, funcMatch.position());
                 colorMap[unMatched] = L"Gray";
             }
 
+            // 2. 处理匹配的函数块（优化后的配色逻辑）
             std::wstring fullFuncBlock = funcMatch[1].str();
             std::wstring funcName = funcMatch[2].str();
-            std::wstring colorType = L"Function";
+            std::wstring colorType = L"Function"; // 默认兜底
 
+            // 核心内置构造函数 → BuiltInObject
             if (funcName == L"Array" || funcName == L"Object" || funcName == L"String" ||
                 funcName == L"Number" || funcName == L"Boolean" || funcName == L"Date" ||
                 funcName == L"RegExp" || funcName == L"Map" || funcName == L"Set") {
                 colorType = L"BuiltInObject";
             }
+            // 异步/特殊内置构造函数 → 专属配色
             else if (funcName == L"Promise") {
                 colorType = L"Promise";
             }
@@ -3185,22 +3197,26 @@ namespace cjs {
                 funcName == L"RangeError" || funcName == L"SyntaxError") {
                 colorType = L"Error";
             }
+            // 全局工具函数 → BuiltInFunction
             else if (funcName == L"parseInt" || funcName == L"parseFloat" || funcName == L"eval" ||
                 funcName == L"decodeURI" || funcName == L"encodeURI" || funcName == L"isNaN" ||
                 funcName == L"isFinite") {
                 colorType = L"BuiltInFunction";
             }
+            // 全局对象 → BuiltInObject
             else if (funcName == L"JSON" || funcName == L"console") {
                 colorType = L"BuiltInObject";
             }
 
             colorMap[fullFuncBlock] = colorType;
 
+            // 3. 更新剩余文本
             size_t matchEndPos = funcMatch.position() + funcMatch.length();
             remainingCode = remainingCode.substr(matchEndPos);
             if (remainingCode.empty()) break;
         }
 
+        // 处理最后剩余的未识别内容（兜底Gray）
         if (!remainingCode.empty()) {
             colorMap[remainingCode] = L"DarkGray";
         }
@@ -7215,24 +7231,24 @@ namespace cjs {
         std::function<JSV(JSContext* ctx, JSV arg)> Reject = nullptr;
     };
     struct PromiseCallback {
-        JSV onFulfilled;
-        JSV onRejected;
-        JSV onFinally;
-        Promise returnPromise;
-        bool isFinally;
+        JSV onFulfilled;    // then 的成功回调
+        JSV onRejected;     // then 的失败回调
+        JSV onFinally;      // finally 的回调
+        Promise returnPromise; // 回调对应的新 Promise
+        bool isFinally;     // 标记是否是 finally 回调
     };
     struct PromiseData {
-        bool isValid = false;
-        bool isChanged = false;
-        bool isProcessedSelf = false;
-        int state = PromiseState::PENDING;
+        bool isValid = false;       // 标记 Promise 是否有效（代码中初始化用到）
+        bool isChanged = false;     // 标记是否已决议（代码中核心判断）
+        bool isProcessedSelf = false;     // 标记自身是否已决议（代码中核心判断）
+        int state = PromiseState::PENDING; // Promise 状态（核心）
         ULL callbackId = 0;
-        JSV promise = {};
-        JSV resolve = {};
-        JSV reject = {};
-        vector_lock<JSV> result = {};
-        vector_lock<JSV> error = {};
-        vector_lock<PromiseCallback> callbacks;
+        JSV promise = {};           // promise 函数（代码中赋值/调用）
+        JSV resolve = {};           // resolve 函数（代码中赋值/调用）
+        JSV reject = {};            // reject 函数（代码中赋值/调用）
+        vector_lock<JSV> result = {}; // fulfilled 结果（代码中存储/读取）
+        vector_lock<JSV> error = {};  // rejected 错误（代码中存储/读取）
+        vector_lock<PromiseCallback> callbacks; // 回调队列（代码中核心使用）
     };
 
     struct CJSHeapData {
@@ -8794,7 +8810,7 @@ namespace cjs {
             SetAttribute(ctx, global, "global", global);
             AppendMethod(ctx, global, "eval", global_eval);
             AppendMethod(ctx, global, "using", global_using);
-            //AppendMethod(ctx, global, "await", global_await);
+            AppendMethod(ctx, global, "await", global_await);
             AppendMethod(ctx, global, "wait", global_wait);
             AppendMethod(ctx, global, "btoa", global_btoa);
             AppendMethod(ctx, global, "atob", global_atob);
@@ -8803,14 +8819,14 @@ namespace cjs {
             AppendMethod(ctx, global, "clearTimeout", global_clearTimeout);
             AppendMethod(ctx, global, "Blob", NewConstructor(ctx, "Blob", global_Blob));
 
-            //JSV Promise = NewConstructor(ctx, "Promise", global_Promise);
-            //AppendMethod(ctx, global, "Promise", Promise);
-            //AppendMethod(ctx, Promise, "resolve", global_Promise_resolve);
-            //AppendMethod(ctx, Promise, "reject", global_Promise_reject);
-            //AppendMethod(ctx, Promise, "all", global_Promise_all);
-            //AppendMethod(ctx, Promise, "allSettled", global_Promise_allSettled);
-            //AppendMethod(ctx, Promise, "race", global_Promise_race);
-            //AppendMethod(ctx, Promise, "any", global_Promise_any);
+            JSV Promise = NewConstructor(ctx, "Promise", global_Promise);
+            AppendMethod(ctx, global, "Promise", Promise);
+            AppendMethod(ctx, Promise, "resolve", global_Promise_resolve);
+            AppendMethod(ctx, Promise, "reject", global_Promise_reject);
+            AppendMethod(ctx, Promise, "all", global_Promise_all);
+            AppendMethod(ctx, Promise, "allSettled", global_Promise_allSettled);
+            AppendMethod(ctx, Promise, "race", global_Promise_race);
+            AppendMethod(ctx, Promise, "any", global_Promise_any);
 
             JSV system = NewObject(ctx, global, "system");
             SetSymbolName(ctx, system, "System");
@@ -15637,23 +15653,41 @@ bytebuffer:
                         CreateOutput(L"Promise {", get_color_value(obj_color_key));
                         CreateOutput(L"\n", get_color_value(obj_color_key));
 
+                        JSValue internal = JS_GetProperty(ctx, val, atom_internal);
+                        JSValue js_id = JS_GetProperty(ctx, internal, atom_id);
+                        JS_FreeValue(ctx, internal);
+                        ULL id = 0;
+                        ReadJSValueAsUint64(ctx, js_id, id);
+                        JS_FreeValue(ctx, js_id);
+
                         JSMData* jsmdPtr = nullptr;
                         std::wstring state_str = L"pending";
                         std::wstring state_color = get_color_value(L"Info");
-                        bool isNeedFree = false;
                         JSValue result_val = JS_UNDEFINED;
-                        JSPromiseStateEnum state = JS_PromiseState(ctx, val);
-                        if (state == JS_PROMISE_FULFILLED) {
-                            state_str = L"fulfilled";
-                            state_color = get_color_value(L"Success");
-                            result_val = JS_PromiseResult(ctx, val);
-                            isNeedFree = true;
-                        }
-                        else if (state == JS_PROMISE_REJECTED) {
-                            state_str = L"rejected";
-                            state_color = get_color_value(L"Error");
-                            result_val = JS_PromiseResult(ctx, val);
-                            isNeedFree = true;
+
+                        if (GetData(ctx, &jsmdPtr) && jsmdPtr != nullptr && jsmdPtr->promiseList.count(id)) {
+                            switch (jsmdPtr->promiseList[id].state) {
+                            case PromiseState::FULFILLED:
+                                state_str = L"fulfilled";
+                                state_color = get_color_value(L"Success");
+                                if (!jsmdPtr->promiseList[id].result.empty()) {
+                                    result_val = jsmdPtr->promiseList[id].result[0].get(0);
+                                }
+                                break;
+                            case PromiseState::REJECTED:
+                                state_str = L"rejected";
+                                state_color = get_color_value(L"Error");
+                                if (!jsmdPtr->promiseList[id].error.empty()) {
+                                    result_val = jsmdPtr->promiseList[id].error[0].get(0);
+                                }
+                                break;
+                            case PromiseState::PENDING:
+                            default:
+                                state_str = L"pending";
+                                state_color = get_color_value(L"Info");
+                                result_val = JS_UNDEFINED;
+                                break;
+                            }
                         }
 
                         CreateOutput(get_indent_str(indent + 1), get_color_value(obj_color_key));
@@ -15669,8 +15703,6 @@ bytebuffer:
 
                         CreateOutput(L"\n", get_color_value(obj_color_key));
                         CreateOutput(get_indent_str(indent) + L"}", get_color_value(obj_color_key));
-
-                        if (isNeedFree) JS_FreeValue(ctx, result_val);
                         return;
                     }
 
@@ -17748,7 +17780,7 @@ bytebuffer:
             return CreateTypedArrayFromBuffer(ctx, buffer, "Int32Array");
         }
 
-        static Promise NewPromise_deleted(JSContext* ctx) {
+        static Promise NewPromise(JSContext* ctx) {
             JSMData* jsmdPtr = nullptr;
             if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) {
                 return {};
@@ -18240,18 +18272,6 @@ bytebuffer:
                 };
             return rp;
         }
-        static Promise NewPromise(JSContext* ctx) {
-            JSValue res_rej[2];
-            JSValue js_promise = JS_NewPromiseCapability(ctx, res_rej);
-            JSV promise = JSV(ctx, js_promise).cset(1);
-            JSV resolve = JSV(ctx, res_rej[0]).cset(1);
-            JSV reject = JSV(ctx, res_rej[1]).cset(1);
-            Promise ret = {};
-            ret.promise = promise;
-            ret.resolve = resolve;
-            ret.reject = reject;
-            return ret;
-        }
 
         static std::string ToString(JSContext* ctx, JSV vName) {
             std::string name = "";
@@ -18433,7 +18453,7 @@ bytebuffer:
             for (const auto& jsv : args) jsArgs.push_back(jsv.get(0));
             JSV result = JSV();
             if (isAsync) {
-                ULL id = AddTask(ctx, func, thisVal, args, thisVal);
+                ULL id = addTask(ctx, func, thisVal, args, thisVal);
                 if (isWait) waitTask(ctx, id);
                 if (isWait) result = queryTask(ctx, id).ret;
                 if (isWait) deleteTask(ctx, id);
@@ -18453,7 +18473,7 @@ bytebuffer:
                 for (int i = 0; i < argc; i++) {
                     args.push_back(JSV(ctx, argv[i]).cget(1).cset(1));
                 }
-                ULL id = AddTask(ctx, func, thisVal, args, thisVal);
+                ULL id = addTask(ctx, func, thisVal, args, thisVal);
                 if (isWait) waitTask(ctx, id);
                 if (isWait) result = queryTask(ctx, id).ret;
                 if (isWait) deleteTask(ctx, id);
@@ -18690,7 +18710,10 @@ bytebuffer:
             return JS_IsSameValue(ctx, obj1.get(0), obj2.get(0));
         }
 
-        static ULL AddTask(JSContext* ctx, JSV task, JSV thisVal, std::vector<JSV> args, JSV flags = {}) {
+        static void RunTask(JSContext* ctx) { return runTask(ctx); }
+        static void RunTask(JSContext* ctx, ULL id) { return runTask(ctx, id); }
+        static void RunTask(JSContext* ctx, JSV promise) { return runTask(ctx, promise); }
+        static ULL addTask(JSContext* ctx, JSV task, JSV thisVal, std::vector<JSV> args, JSV flags = {}) {
             JSMData* jsmdPtr = nullptr;
             if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return 0;
             ULL id = GetNewTaskId(ctx);
@@ -18730,7 +18753,7 @@ bytebuffer:
             }
             return jsmdPtr->taskList.erase(id) || jsmdPtr->runnedTaskList.erase(id);
         }
-        static void RunTask(JSContext* ctx) {
+        static void runTask(JSContext* ctx) {
 
             JSMData* jsmdPtr = nullptr;
             if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) {
@@ -18740,23 +18763,19 @@ bytebuffer:
             if (jsmdPtr->isRunningTask) return;
             jsmdPtr->isRunningTask = true;
 
-            JSRuntime* rt = JS_GetRuntime(ctx);
-            while ((((JS_IsJobPending(rt) || !jsmdPtr->taskList.empty()) || !jsmdPtr->threadList.empty()) && !jsmdPtr->isQuit) && !isQuit) {
+            while (((!jsmdPtr->taskList.empty() || !jsmdPtr->threadList.empty()) && !jsmdPtr->isQuit) && !isQuit) {
 
-                if (!jsmdPtr->threadList.empty() && (!JS_IsJobPending(rt) && jsmdPtr->taskList.empty())) {
+                if (!jsmdPtr->threadList.empty() && jsmdPtr->taskList.empty()) {
                     update(ctx);
                     AdvSleep(1.0);
                     continue;
                 }
 
-                if (jsmdPtr->threadList.empty() && (!JS_IsJobPending(rt) && jsmdPtr->taskList.empty())) break;
-
-                JSContext* ctx_unused = nullptr;
-                JS_ExecutePendingJob(rt, &ctx_unused);
+                if (jsmdPtr->threadList.empty() && jsmdPtr->taskList.empty()) break;
 
                 auto it = jsmdPtr->taskList.begin();
                 if (it == jsmdPtr->taskList.end()) {
-                    continue;
+                    break;
                 }
                 ULL id = it->first;
                 Task task = it->second;
@@ -18775,7 +18794,46 @@ bytebuffer:
             }
 
             jsmdPtr->isRunningTask = false;
+        }
+        static void runTask(JSContext* ctx, ULL id) {
 
+            JSMData* jsmdPtr = nullptr;
+            if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr || !jsmdPtr->taskList.count(id)) {
+                return;
+            }
+            if (jsmdPtr->isRunningTask) {
+                waitTask(ctx, id);
+                return;
+            }
+
+            Task task = jsmdPtr->taskList[id];
+            JSV ret = CallFunction(ctx, task.task, task.thisVal, task.args);
+            TaskData td = {};
+            td.isValid = true;
+            td.task = task;
+            td.ret = ret;
+            jsmdPtr->runnedTaskList[id] = td;
+            jsmdPtr->taskList.erase(id);
+            update(ctx);
+
+            waitTask(ctx, id);
+            return;
+
+        }
+        static void runTask(JSContext* ctx, JSV flags) {
+            JSMData* jsmdPtr = nullptr;
+            if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) {
+                return;
+            }
+            ULL id = 0;
+            for (auto [idd, task] : jsmdPtr->taskList) {
+                if (task.flags == flags) {
+                    id = idd;
+                    break;
+                }
+            }
+            if (id == 0) return;
+            return runTask(ctx, id);
         }
 
         static ULL GetCJSValue(JSContext* ctx, JSV jsv) {
@@ -21110,15 +21168,14 @@ bytebuffer:
             if (isHookOutput) ClearOutput();
 
             JavaScriptMethod::SetAttribute(jsContext, JavaScriptMethod::GetProperty(jsContext, JavaScriptMethod::NewGlobalObject(jsContext), "system"), "fileName", wstringToString(fileName));
-            JSValue ret = JS_Eval(
+            JSValue result = JS_Eval(
                 jsContext,
                 code.c_str(),
                 code.length(),
                 wstringToString(fileName).c_str(),
-                JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_ASYNC
+                JS_EVAL_TYPE_GLOBAL
             );
             JavaScriptMethod::RunTask(jsContext);
-            JSV result = JavaScriptMethod::GetProperty(jsContext, JSV(jsContext, JS_PromiseResult(jsContext, JSV(jsContext, ret).cset(1).get(0))).cset(1), "value");
 
             JSINFO jsif = {};
 
@@ -21127,10 +21184,9 @@ bytebuffer:
             if (isHookOutput) isConsoleEnv = tempIsConsoleEnv;
 
             jsif.isValid = true;
-            jsif.result = result;
+            jsif.result = JSV(jsContext, result).cset(1);
 
-
-            if (JS_IsException(result.get(0))) {
+            if (JS_IsException(result)) {
                 JSValue exception = JS_GetException(jsContext);
                 const char* message = JS_ToCString(jsContext, exception);
                 if (message == nullptr) {
@@ -21155,7 +21211,7 @@ bytebuffer:
                 JS_FreeValue(jsContext, exception);
             }
             else {
-                const char* message = JS_ToCString(jsContext, result.get(0));
+                const char* message = JS_ToCString(jsContext, result);
                 if (message == nullptr) {
 
                     jsif.isSuccess = true;
