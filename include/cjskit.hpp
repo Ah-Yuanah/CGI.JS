@@ -7195,8 +7195,6 @@ namespace cjs {
             this->promise = other.promise;
             this->resolve = other.resolve;
             this->reject = other.reject;
-            this->callResolve = other.callResolve;
-            this->callReject = other.callReject;
             this->Resolve = other.Resolve;
             this->Reject = other.Reject;
             return *this;
@@ -7209,10 +7207,8 @@ namespace cjs {
         JSV promise = JSV(JS_UNDEFINED);
         JSV resolve = JSV(JS_UNDEFINED);
         JSV reject = JSV(JS_UNDEFINED);
-        std::function<JSV(JSContext* ctx, std::vector<JSV> args)> callResolve = nullptr;
-        std::function<JSV(JSContext* ctx, std::vector<JSV> args)> callReject = nullptr;
-        std::function<JSV(JSContext* ctx, JSV arg)> Resolve = nullptr;
-        std::function<JSV(JSContext* ctx, JSV arg)> Reject = nullptr;
+        std::function<void(JSContext* ctx, JSV arg)> Resolve = nullptr;
+        std::function<void(JSContext* ctx, JSV arg)> Reject = nullptr;
     };
     struct PromiseCallback {
         JSV onFulfilled;
@@ -18210,20 +18206,20 @@ bytebuffer:
             rp.promise = promise;
             rp.resolve = resolve;
             rp.reject = reject;
-            rp.callResolve = [=](JSContext* ctx, std::vector<JSV> args) -> JSV {
-                JSV ret = CallFunction(ctx, rp.resolve, promise, args, true, false);
-                ULL id = 0;
-                ReadJSValueAsUint64(ctx, ret, id);
-                jsmdPtr->promiseList[id].callbackId = id;
-                return ret;
-                };
-            rp.callReject = [=](JSContext* ctx, std::vector<JSV> args)-> JSV {
-                JSV ret = CallFunction(ctx, rp.reject, promise, args, true, false);
-                ULL id = 0;
-                ReadJSValueAsUint64(ctx, ret, id);
-                jsmdPtr->promiseList[id].callbackId = id;
-                return ret;
-                };
+            //rp.callResolve = [=](JSContext* ctx, std::vector<JSV> args) -> JSV {
+            //    JSV ret = CallFunction(ctx, rp.resolve, promise, args, true, false);
+            //    ULL id = 0;
+            //    ReadJSValueAsUint64(ctx, ret, id);
+            //    jsmdPtr->promiseList[id].callbackId = id;
+            //    return ret;
+            //    };
+            //rp.callReject = [=](JSContext* ctx, std::vector<JSV> args)-> JSV {
+            //    JSV ret = CallFunction(ctx, rp.reject, promise, args, true, false);
+            //    ULL id = 0;
+            //    ReadJSValueAsUint64(ctx, ret, id);
+            //    jsmdPtr->promiseList[id].callbackId = id;
+            //    return ret;
+            //    };
             rp.Resolve = [=](JSContext* ctx, JSV arg)-> JSV {
                 JSV ret = CallFunction(ctx, rp.resolve, promise, { arg }, true, false);
                 ULL id = 0;
@@ -18250,6 +18246,12 @@ bytebuffer:
             ret.promise = promise;
             ret.resolve = resolve;
             ret.reject = reject;
+            ret.Resolve = [=](JSContext* ctx, JSV arg)->void {
+                CallFunction(ctx, resolve, promise, { arg }, true, false);
+                };
+            ret.Reject = [=](JSContext* ctx, JSV arg)->void {
+                CallFunction(ctx, reject, promise, { arg }, true, false);
+                };
             return ret;
         }
 
@@ -21115,10 +21117,10 @@ bytebuffer:
                 code.c_str(),
                 code.length(),
                 wstringToString(fileName).c_str(),
-                JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_ASYNC
+                JS_EVAL_TYPE_GLOBAL
             );
             JavaScriptMethod::RunTask(jsContext);
-            JSV result = JavaScriptMethod::GetProperty(jsContext, JSV(jsContext, JS_PromiseResult(jsContext, JSV(jsContext, ret).cset(1).get(0))).cset(1), "value");
+            JSV result = JSV(jsContext, ret).cset(1);
 
             JSINFO jsif = {};
 
@@ -21128,7 +21130,6 @@ bytebuffer:
 
             jsif.isValid = true;
             jsif.result = result;
-
 
             if (JS_IsException(result.get(0))) {
                 JSValue exception = JS_GetException(jsContext);
