@@ -3881,7 +3881,7 @@ namespace cjs {
         return true;
     }
 
-    std::wstring GetErrorFront(JSContext* jsContext, JSValue& exception) {
+    std::wstring GetErrorFront(JSContext* jsContext, JSValue exception) {
         if (!jsContext || JS_IsUndefined(exception) || JS_IsNull(exception)) {
             return L"unknown:0:0 SyntaxError: unexpected token in expression: ''";
         }
@@ -3936,7 +3936,7 @@ namespace cjs {
         return stringToWstring(coreErr);
     }
 
-    std::vector<std::wstring> GetErrorFrontStack(JSContext* jsContext, JSValue& exception) {
+    std::vector<std::wstring> GetErrorFrontStack(JSContext* jsContext, JSValue exception) {
         std::vector<std::wstring> resultStack;
 
         // 入参合法性校验
@@ -5884,7 +5884,7 @@ namespace cjs {
     class JavaScript;
     class JavaScriptMethod;
 
-    #include "../include/cjsapibase.h"
+#include "../include/cjsapibase.h"
 
     void DeleteInstance(JavaScript* instance);
     JavaScript* NewInstance();
@@ -12136,9 +12136,10 @@ bytebuffer:
             return JS_NewBool(ctx, result);
         }
         static JSValue system_execute(JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) {
+            Promise promise = NewPromise(ctx);
             if (argumentCount != 1) {
-                JS_ThrowTypeError(ctx, "[system.execute] Only 1 argument is supported: (cmd)");
-                return JS_EXCEPTION;
+                promise.Reject(ctx, NewTypeError(ctx, "[system.execute] Only 1 argument is supported: (cmd)"));
+                return promise.promise.get(1);
             }
             JSV vCmd = JSV(&argumentValues[0]);
             std::string cmd = "";
@@ -12146,18 +12147,30 @@ bytebuffer:
                 JS_ThrowTypeError(ctx, "[system.execute] The first argument must be a string");
                 return JS_EXCEPTION;
             }
+            JSMData* jsmdPtr = nullptr;
+            if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) {
+                JS_ThrowInternalError(ctx, "[native code] This context is invalid");
+                return JS_EXCEPTION;
+            }
+            std::thread t([=]() {
+                std::wstring result = L"";
+                DWORD returnCode = EXIT_SUCCESS;
+                bool ret = ExecuteCmdCommand(stringToWstring(cmd), result, &returnCode);
+                JSV returnValue = NewObject(ctx);
+                JSV vIsSuccess = NewBool(ctx, ret);
+                SetAttribute(ctx, returnValue, "isSuccess", vIsSuccess);
+                JSV vExitCode = NewUint64(ctx, static_cast<uint64_t>(returnCode));
+                SetAttribute(ctx, returnValue, "exitCode", vExitCode);
+                JSV vOutput = NewString(ctx, wstringToString(result));
+                SetAttribute(ctx, returnValue, "output", vOutput);
+                promise.Resolve(ctx, returnValue);
+                });
+            Thread td = std::move(t);
+            td.detach();
+            jsmdPtr->threadList.push_back(td);
+            update(ctx);
 
-            std::wstring result = L"";
-            DWORD returnCode = EXIT_SUCCESS;
-            bool ret = ExecuteCmdCommand(stringToWstring(cmd), result, &returnCode);
-            JSV returnValue = NewObject(ctx);
-            JSV vIsSuccess = NewBool(ctx, ret);
-            SetAttribute(ctx, returnValue, "isSuccess", vIsSuccess);
-            JSV vExitCode = NewUint64(ctx, static_cast<uint64_t>(returnCode));
-            SetAttribute(ctx, returnValue, "exitCode", vExitCode);
-            JSV vOutput = NewString(ctx, wstringToString(result));
-            SetAttribute(ctx, returnValue, "output", vOutput);
-            return returnValue.get(1);
+            return promise.promise.get(1);
         }
         static JSValue system_cmd(JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) {
             if (argumentCount != 0) {
@@ -12199,7 +12212,7 @@ bytebuffer:
 
             ChildSystemExitInstance(jsmdPtr->js);
 
-            JS_Throw(ctx, JS_NewString(ctx, "[native code] Quit the context"));
+            JS_Throw(ctx, JS_NewInternalError(ctx, "[native code] Quit the context"));
             return JS_EXCEPTION;
         }
 
@@ -16818,9 +16831,9 @@ bytebuffer:
             outBool = static_cast<bool>(nBool);
             return true;
         }
-        static bool ReadJSValueAsString(JSContext* ctx, JSV jsVal, std::string& outString) {
+        static bool ReadJSValueAsString(JSContext* ctx, JSV jsVal, std::string& outString, bool isStrict = true) {
             if (ctx == nullptr) return false;
-            if (!JS_IsString(jsVal.get(0))) {
+            if (!JS_IsString(jsVal.get(0)) && isStrict) {
                 return false;
             }
             const char* cString = JS_ToCString(ctx, jsVal.get(0));
@@ -21117,75 +21130,56 @@ bytebuffer:
                 code.c_str(),
                 code.length(),
                 wstringToString(fileName).c_str(),
-                JS_EVAL_TYPE_GLOBAL
+                JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_ASYNC
             );
             JavaScriptMethod::RunTask(jsContext);
             JSV result = JSV(jsContext, ret).cset(1);
+            JSV promiseResult = JSV(jsContext, JS_PromiseResult(jsContext, result.get(0))).cset(1);
+            bool isSuccess = JS_PromiseState(jsContext, result.get(0)) == JS_PROMISE_FULFILLED && !JS_IsException(result.get(0));
+            promiseResult = (!isSuccess) ? promiseResult : JavaScriptMethod::GetProperty(jsContext, promiseResult, "value");
 
             JSINFO jsif = {};
-
             if (isHookOutput) jsif.output = outputTemp;
             if (isHookOutput) ClearOutput();
             if (isHookOutput) isConsoleEnv = tempIsConsoleEnv;
-
             jsif.isValid = true;
-            jsif.result = result;
+            jsif.result = promiseResult;
 
-            if (JS_IsException(result.get(0))) {
-                JSValue exception = JS_GetException(jsContext);
-                const char* message = JS_ToCString(jsContext, exception);
-                if (message == nullptr) {
-                    JS_FreeValue(jsContext, exception);
-                    goto EndProcess;
+            if (!isSuccess) {
+                std::string errorType = "";
+                std::string errorMessage = "";
+                if (JS_IsException(result.get(0))) {
+                    JSV exception = JSV(jsContext, JS_GetException(jsContext)).cset(1);
+                    promiseResult = exception;
+                    JavaScriptMethod::ReadJSValueAsString(jsContext, JavaScriptMethod::GetProperty(jsContext, exception, "name"), errorType, false);
+                    JavaScriptMethod::ReadJSValueAsString(jsContext, JavaScriptMethod::GetProperty(jsContext, exception, "message"), errorMessage, false);
                 }
-                if (std::string(message) == "[native code] Quit the context") {
-                    JS_FreeCString(jsContext, message);
-                    JS_FreeValue(jsContext, exception);
-
+                else {
+                    JavaScriptMethod::ReadJSValueAsString(jsContext, JavaScriptMethod::GetProperty(jsContext, promiseResult, "name"), errorType, false);
+                    JavaScriptMethod::ReadJSValueAsString(jsContext, JavaScriptMethod::GetProperty(jsContext, promiseResult, "message"), errorMessage, false);
+                }
+                if (errorMessage == "[native code] Quit the context") {
                     jsif.isSuccess = true;
                     jsif.message = L"undefined";
                     goto EndProcess;
                 }
-
                 jsif.isSuccess = false;
-                jsif.message = (message != nullptr) ? stringToWstring(message) : L"Unknown Error";
-                jsif.errorFront = GetErrorFront(jsContext, exception);
-                jsif.errorStack = GetErrorFrontStack(jsContext, exception);
-
-                JS_FreeCString(jsContext, message);
-                JS_FreeValue(jsContext, exception);
+                jsif.message = stringToWstring("Uncaught " + errorType + ": " + errorMessage);
+                jsif.errorFront = GetErrorFront(jsContext, promiseResult.get(0));
+                jsif.errorStack = GetErrorFrontStack(jsContext, promiseResult.get(0));
             }
             else {
-                const char* message = JS_ToCString(jsContext, result.get(0));
-                if (message == nullptr) {
-
-                    jsif.isSuccess = true;
-                    jsif.message = L"[object Object]";
-
-                    bool tempIsConsoleEnv = isConsoleEnv;
-                    isConsoleEnv = false;
-                    ClearOutput();
-                    JavaScriptMethod::CallFunction(jsContext, JavaScriptMethod::GetProperty(jsContext, JavaScriptMethod::NewGlobalObject(jsContext), { {"console"}, {"log"} }), JS_UNDEFINED, { {jsif.result} });
-                    jsif.detail = outputTemp;
-                    ClearOutput();
-                    isConsoleEnv = tempIsConsoleEnv;
-
-                    goto EndProcess;
-                }
-
+                std::string message = "";
+                JavaScriptMethod::ReadJSValueAsString(jsContext, promiseResult, message, false);
                 jsif.isSuccess = true;
-                jsif.message = (message != nullptr) ? stringToWstring(message) : L"undefined";
-
-                JS_FreeCString(jsContext, message);
-
+                jsif.message = stringToWstring(message);
                 bool tempIsConsoleEnv = isConsoleEnv;
                 isConsoleEnv = false;
                 ClearOutput();
-                JavaScriptMethod::CallFunction(jsContext, JavaScriptMethod::GetProperty(jsContext, JavaScriptMethod::NewGlobalObject(jsContext), { {"console"}, {"log"} }), JS_UNDEFINED, { {jsif.result} });
+                JavaScriptMethod::CallFunction(jsContext, JavaScriptMethod::GetProperty(jsContext, JavaScriptMethod::NewGlobalObject(jsContext), { {"console"}, {"log"} }), JS_UNDEFINED, { {promiseResult} });
                 jsif.detail = outputTemp;
                 ClearOutput();
                 isConsoleEnv = tempIsConsoleEnv;
-
             }
         EndProcess:;
             return jsif;
@@ -21252,7 +21246,7 @@ bytebuffer:
         return JavaScriptMethod::CallFunction(ctx, func, thisVal, argc, argv, isAsync, isWait);
     }
 
-    #include "../include/cjsapic.hpp"
+#include "../include/cjsapic.hpp"
 
     bool InitLibrary(JSMData* jsmdPtr, std::wstring path) {
 
