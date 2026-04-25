@@ -3771,6 +3771,7 @@ namespace cjs {
     }
 
     void OutputStack(std::vector<std::wstring>& Instack) {
+        if (Instack.empty()) return;
         CreateOutput(L"@Stack: \n", GetColorValue(L"DarkGray"));
         ULL stackIndex = 0;
         for (const std::wstring& stack : Instack) {
@@ -21148,6 +21149,7 @@ bytebuffer:
             if (!isSuccess) {
                 std::string errorType = "";
                 std::string errorMessage = "";
+                bool isPromiseRejectWithNonError = false;
                 if (JS_IsException(result.get(0))) {
                     JSV exception = JSV(jsContext, JS_GetException(jsContext)).cset(1);
                     promiseResult = exception;
@@ -21155,8 +21157,14 @@ bytebuffer:
                     JavaScriptMethod::ReadJSValueAsString(jsContext, JavaScriptMethod::GetProperty(jsContext, exception, "message"), errorMessage, false);
                 }
                 else {
-                    JavaScriptMethod::ReadJSValueAsString(jsContext, JavaScriptMethod::GetProperty(jsContext, promiseResult, "name"), errorType, false);
-                    JavaScriptMethod::ReadJSValueAsString(jsContext, JavaScriptMethod::GetProperty(jsContext, promiseResult, "message"), errorMessage, false);
+                    if (JS_IsError(promiseResult.get(0))) {
+                        JavaScriptMethod::ReadJSValueAsString(jsContext, JavaScriptMethod::GetProperty(jsContext, promiseResult, "name"), errorType, false);
+                        JavaScriptMethod::ReadJSValueAsString(jsContext, JavaScriptMethod::GetProperty(jsContext, promiseResult, "message"), errorMessage, false);
+                    }
+                    else {
+                        JavaScriptMethod::ReadJSValueAsString(jsContext, promiseResult, errorMessage, false);
+                        isPromiseRejectWithNonError = true;
+                    }
                 }
                 if (errorMessage == "[native code] Quit the context") {
                     jsif.isSuccess = true;
@@ -21164,9 +21172,16 @@ bytebuffer:
                     goto EndProcess;
                 }
                 jsif.isSuccess = false;
-                jsif.message = stringToWstring("Uncaught " + errorType + ": " + errorMessage);
-                jsif.errorFront = GetErrorFront(jsContext, promiseResult.get(0));
-                jsif.errorStack = GetErrorFrontStack(jsContext, promiseResult.get(0));
+                if (!isPromiseRejectWithNonError) {
+                    jsif.message = stringToWstring("Uncaught " + errorType + ": " + errorMessage);
+                    jsif.errorFront = GetErrorFront(jsContext, promiseResult.get(0));
+                    jsif.errorStack = GetErrorFrontStack(jsContext, promiseResult.get(0));
+                }
+                else {
+                    jsif.message = stringToWstring("Uncaught " + errorMessage);
+                    jsif.errorFront = L"";
+                    jsif.errorStack = {};
+                }
             }
             else {
                 std::string message = "";
