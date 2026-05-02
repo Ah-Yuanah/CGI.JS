@@ -6307,60 +6307,40 @@ namespace cjs {
     public:
         ThreadInst(std::thread t) {
             thread = std::move(t);
-            if (thread.joinable()) {
-                handle = (HANDLE)thread.native_handle();
-            }
-            else {
-                handle = INVALID_HANDLE_VALUE;
-            }
+            handle = (HANDLE)thread.native_handle();
         }
-
-        ~ThreadInst() = default;
-
         std::thread* get() {
             return &thread;
         }
-
         HANDLE getHandle() {
             return handle;
         }
-
         void setHandle(HANDLE hd) {
             handle = hd;
         }
-
         void add() {
-            if (refCount.load() < UINT64_MAX)
-                refCount.fetch_add(1, std::memory_order_relaxed);
+            if (refCount.load() < ULLONG_MAX) refCount.fetch_add(1, std::memory_order_relaxed);
         }
-
         void remove() {
-            if (refCount.load() > 0)
-                refCount.fetch_sub(1, std::memory_order_acq_rel);
+            if (refCount.load() > 0) refCount.fetch_sub(1, std::memory_order_acq_rel);
         }
-
-        uint64_t read() {
+        ULL read() {
             return refCount.load();
         }
-
     private:
         std::thread thread;
-        HANDLE handle = INVALID_HANDLE_VALUE;
-        std::atomic<uint64_t> refCount = 0;
-
-        ThreadInst(const ThreadInst&) = delete;
-        ThreadInst& operator=(const ThreadInst&) = delete;
+        HANDLE handle;
+        std::atomic<ULL> refCount = 0;
     };
-
     class Thread {
     public:
         void* operator new(size_t) = delete;
-        void* operator new[](size_t) = delete;
         void operator delete(void*) = delete;
+        void* operator new[](size_t) = delete;
         void operator delete[](void*) = delete;
-
-        Thread() = default;
-
+        Thread() {
+            threadInst = nullptr;
+        }
         Thread(std::thread t) {
             try {
                 threadInst = new ThreadInst(std::move(t));
@@ -6368,111 +6348,102 @@ namespace cjs {
             catch (...) {
                 throw std::runtime_error("[Thread] Failed to new.");
             }
+
             threadInst->add();
         }
-
         Thread(const Thread& other) {
-            threadInst = other.threadInst;
-            if (threadInst) {
-                threadInst->add();
+            this->threadInst = other.threadInst;
+            if (this->threadInst != nullptr) {
+                this->threadInst->add();
             }
         }
-
         Thread(Thread&& other) noexcept {
-            threadInst = other.threadInst;
+            this->threadInst = other.threadInst;
             other.threadInst = nullptr;
         }
-
         ~Thread() {
             update();
         }
-
         Thread& operator=(const Thread& other) {
-            if (this == &other || *this == other)
-                return *this;
 
-            update();
-            threadInst = other.threadInst;
-            if (threadInst) {
-                threadInst->add();
+            if (this == &other || *this == other) return *this;
+            this->update();
+            this->threadInst = other.threadInst;
+            if (this->threadInst != nullptr) {
+                this->threadInst->add();
             }
+
             return *this;
         }
-
         bool operator==(const Thread& other) const {
-            return threadInst == other.threadInst;
+            return this->threadInst == other.threadInst;
         }
-
         std::thread* get() const {
-            return threadInst ? threadInst->get() : nullptr;
+            if (threadInst == nullptr) return nullptr;
+            return threadInst->get();
         }
-
         HANDLE getHandle() const {
-            return threadInst ? threadInst->getHandle() : INVALID_HANDLE_VALUE;
+            if (threadInst == nullptr) return INVALID_HANDLE_VALUE;
+            return threadInst->getHandle();
         }
-
         bool isValid() const {
-            return threadInst != nullptr;
+            return this->threadInst != nullptr;
         }
-
         HANDLE join() {
-            if (!isValid() || !joinable())
-                return getHandle();
-
-            DWORD tid = GetThreadId(threadInst->getHandle());
-            HANDLE newHandle = OpenThread(THREAD_QUERY_INFORMATION | THREAD_TERMINATE | SYNCHRONIZE, FALSE, tid);
-
-            threadInst->setHandle(newHandle);
-            threadInst->get()->join();
-            return getHandle();
+            if (joinable()) {
+                DWORD threadId = GetThreadId(threadInst->getHandle());
+                threadInst->setHandle(OpenThread(
+                    THREAD_QUERY_INFORMATION | THREAD_TERMINATE | SYNCHRONIZE,
+                    FALSE,
+                    threadId
+                ));
+                (*(threadInst->get())).join();
+            }
+            return threadInst->getHandle();
         }
-
         HANDLE detach() {
-            if (!isValid() || !joinable())
-                return getHandle();
-
-            DWORD tid = GetThreadId(threadInst->getHandle());
-            HANDLE newHandle = OpenThread(THREAD_QUERY_INFORMATION | THREAD_TERMINATE | SYNCHRONIZE, FALSE, tid);
-
-            threadInst->setHandle(newHandle);
-            threadInst->get()->detach();
-            return getHandle();
+            if (joinable()) {
+                threadInst->setHandle(OpenThread(
+                    THREAD_QUERY_INFORMATION | THREAD_TERMINATE | SYNCHRONIZE,
+                    FALSE,
+                    GetThreadId(threadInst->getHandle())
+                ));
+                (*(threadInst->get())).detach();
+            }
+            return threadInst->getHandle();
         }
-
         bool joinable() {
-            return isValid() ? threadInst->get()->joinable() : false;
+            return (*(threadInst->get())).joinable();
         }
-
         bool isQuit() {
-            HANDLE h = getHandle();
-            if (h == NULL || h == INVALID_HANDLE_VALUE)
+            if (getHandle() == NULL || getHandle() == INVALID_HANDLE_VALUE) {
                 return true;
-            return WaitForSingleObject(h, 0) == WAIT_OBJECT_0;
+            }
+            return (WaitForSingleObject(getHandle(), 0) == WAIT_OBJECT_0);
         }
-
     private:
         ThreadInst* threadInst = nullptr;
-
         void update() {
-            if (!threadInst) return;
-
+            if (threadInst == nullptr) return;
             threadInst->remove();
             if (threadInst->read() == 0) {
                 HANDLE hThread = threadInst->getHandle();
                 if (hThread != INVALID_HANDLE_VALUE) {
                     DWORD exitCode = 0;
-                    if (GetExitCodeThread(hThread, &exitCode) && exitCode == STILL_ACTIVE) {
-                        if (WaitForSingleObject(hThread, 1000) != WAIT_OBJECT_0) {
-                            TerminateThread(hThread, 0);
-                        }
-                        if (threadInst->get()->joinable()) {
-                            threadInst->get()->join();
+                    if (GetExitCodeThread(hThread, &exitCode)) {
+                        if (exitCode == STILL_ACTIVE) {
+                            DWORD waitResult = WaitForSingleObject(hThread, 1000);
+                            if (waitResult != WAIT_OBJECT_0) {
+                                TerminateThread(hThread, 0);
+                            }
+                            std::thread* t = threadInst->get();
+                            if (t->joinable()) {
+                                t->join();
+                            }
                         }
                     }
-
                     CloseHandle(hThread);
                 }
-
                 delete threadInst;
             }
             threadInst = nullptr;
@@ -8848,7 +8819,6 @@ namespace cjs {
             JSV console = NewObject(ctx, global, "console");
             SetSymbolName(ctx, console, "Console");
             AppendMethod(ctx, console, "log", console_log);
-            AppendMethod(ctx, console, "clear", console_clear);
 
             //运行时修改
             JSV document = NewObject(ctx, global, "document");
@@ -15877,11 +15847,6 @@ bytebuffer:
 
             return JS_UNDEFINED;
         }
-        static JSValue console_clear(JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) {
-            ClearOutput();
-            return JS_UNDEFINED;
-        }
-
 
         static JSValue filesystem_count(JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) {
             if (argumentCount != 1) {
