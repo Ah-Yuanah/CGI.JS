@@ -973,22 +973,7 @@ extern "C" {
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
         JSV js_promise = {};
         if (!FindCJSValue(jsmdPtr, in_promise, js_promise)) return {};
-        JSV js_id = jsm::GetProperty(ctx, js_promise, { {"internal"}, {"id"} });
-        ULL id = 0;
-        jsm::ReadJSValueAsUint64(ctx, js_id, id);
-        if (!jsmdPtr->promiseList.count(id)) {
-            return {};
-        }
-        if (jsmdPtr->promiseList[id].state == CJS_STATE_PROMISE_PENDING) {
-            return CJS_ERROR_PROMISE_STATE_BAD;
-        }
-        if (jsmdPtr->promiseList[id].state == CJS_STATE_PROMISE_FULFILLED) {
-            return jsm::GetCJSValue(ctx, (jsmdPtr->promiseList[id].result.size() == 0) ? JS_UNDEFINED : jsmdPtr->promiseList[id].result[0]);
-        }
-        else {
-            return jsm::GetCJSValue(ctx, (jsmdPtr->promiseList[id].error.size() == 0) ? JS_UNDEFINED : jsmdPtr->promiseList[id].error[0]);
-        }
-        return {};
+        return jsm::GetCJSValue(ctx, JSV(JS_PromiseResult(ctx, js_promise.get(0))).cset(1));
     }
     CAEXP CJSPromiseState cjs_PromiseGetState(CJSVERSION version, CJSContext in_ctx, CJSValue in_promise) {
         JSContext* ctx = (JSContext*)in_ctx;
@@ -996,13 +981,18 @@ extern "C" {
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
         JSV js_promise = {};
         if (!FindCJSValue(jsmdPtr, in_promise, js_promise)) return {};
-        JSV js_id = jsm::GetProperty(ctx, js_promise, { {"internal"}, {"id"} });
-        ULL id = 0;
-        jsm::ReadJSValueAsUint64(ctx, js_id, id);
-        if (!jsmdPtr->promiseList.count(id)) {
-            return CJS_STATE_ERROR;
+        JSPromiseStateEnum state = JS_PromiseState(ctx, js_promise.get(0));
+        CJSPromiseState cjs_state = CJSPromiseState::CJS_STATE_PROMISE_PENDING;
+        if (state == JSPromiseStateEnum::JS_PROMISE_PENDING) {
+            cjs_state = CJSPromiseState::CJS_STATE_PROMISE_PENDING;
         }
-        return static_cast<CJSPromiseState>(jsmdPtr->promiseList[id].state);
+        if (state == JSPromiseStateEnum::JS_PROMISE_FULFILLED) {
+            cjs_state = CJSPromiseState::CJS_STATE_PROMISE_FULFILLED;
+        }
+        if (state == JSPromiseStateEnum::JS_PROMISE_REJECTED) {
+            cjs_state = CJSPromiseState::CJS_STATE_PROMISE_REJECTED;
+        }
+        return cjs_state;
     }
     CAEXP bool cjs_PromiseResolve(CJSVERSION version, CJSContext in_ctx, CJSValue in_promise, CJSValue in_value) {
         CJSPromiseState ps = cjs_PromiseGetState(version, in_ctx, in_promise);
@@ -1011,18 +1001,9 @@ extern "C" {
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
         JSV js_promise = {};
-
         JSV js_value = {};
         if (!FindCJSValue(jsmdPtr, in_promise, js_promise) || !FindCJSValue(jsmdPtr, in_value, js_value)) return {};
-        JSV js_id = jsm::GetProperty(ctx, js_promise, { {"internal"}, {"id"} });
-        ULL id = 0;
-        jsm::ReadJSValueAsUint64(ctx, js_id, id);
-        if (!jsmdPtr->promiseList.count(id)) {
-            return {};
-        }
-        JSV js_resolve = jsmdPtr->promiseList[id].resolve;
-        JSV ret = CallFunction(ctx, js_resolve, js_promise, { js_value }, true, false);
-        jsmdPtr->promiseList[id].callbackId = id;
+        jsm::CallFunction(ctx, js_promise, js_promise, {js_value});
         return true;
     }
     CAEXP bool cjs_PromiseReject(CJSVERSION version, CJSContext in_ctx, CJSValue in_promise, CJSValue in_value) {
@@ -1032,18 +1013,9 @@ extern "C" {
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
         JSV js_promise = {};
-
         JSV js_value = {};
         if (!FindCJSValue(jsmdPtr, in_promise, js_promise) || !FindCJSValue(jsmdPtr, in_value, js_value)) return {};
-        JSV js_id = jsm::GetProperty(ctx, js_promise, { {"internal"}, {"id"} });
-        ULL id = 0;
-        jsm::ReadJSValueAsUint64(ctx, js_id, id);
-        if (!jsmdPtr->promiseList.count(id)) {
-            return {};
-        }
-        JSV js_reject = jsmdPtr->promiseList[id].reject;
-        JSV ret = CallFunction(ctx, js_reject, js_promise, { js_value }, true, false);
-        jsmdPtr->promiseList[id].callbackId = id;
+        jsm::CallFunction(ctx, js_promise, js_promise, { js_value });
         return true;
     }
     CAEXP CJSID cjs_EnqueueTask(CJSVERSION version, CJSContext in_ctx, CJSValue in_task, CJSValue in_this, cjs_int in_argumentCount, CJSValue* in_argumentValues) {
