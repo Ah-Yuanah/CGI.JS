@@ -15362,8 +15362,15 @@ bytebuffer:
                 }
                 else if (JS_IsNumber(val)) {
                     double num = 0.0;
-                    if (JS_ToFloat64(ctx, &num, val) == 0) CreateOutput(RemoveSpaceAfterNumber(std::to_wstring(num)), get_color_value(L"Number"));
-                    else CreateOutput(L"[invalid number]", get_color_value(L"Comment"));
+                    if (JS_ToFloat64(ctx, &num, val) == 0) {
+                        std::wstringstream wss;
+                        wss << std::setprecision(17) << num;
+                        std::wstring num_wstr = RemoveSpaceAfterNumber(wss.str());
+                        CreateOutput(num_wstr, get_color_value(L"Number"));
+                    }
+                    else {
+                        CreateOutput(L"[invalid number]", get_color_value(L"Comment"));
+                    }
                 }
                 else if (JS_IsBigInt(val)) {
                     int64_t bnum_signed = 0;
@@ -17458,10 +17465,9 @@ bytebuffer:
                         name = doubleVal > 0 ? "Infinity" : "-Infinity";
                     }
                     else {
-                        name = std::to_string(doubleVal);
-                        if (name.find(".0") == name.length() - 2) {
-                            name = name.substr(0, name.length() - 2);
-                        }
+                        std::stringstream wss;
+                        wss << std::setprecision(17) << doubleVal;
+                        name = wss.str();
                     }
                 }
             }
@@ -17517,10 +17523,9 @@ bytebuffer:
                         numStr = doubleVal > 0 ? "Infinity" : "-Infinity";
                     }
                     else {
-                        numStr = std::to_string(doubleVal);
-                        if (numStr.find(".0") == numStr.length() - 2) {
-                            numStr = numStr.substr(0, numStr.length() - 2);
-                        }
+                        std::stringstream wss;
+                        wss << std::setprecision(17) << doubleVal;
+                        numStr = wss.str();
                     }
                 }
                 binary = ToBinary(numStr);
