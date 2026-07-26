@@ -245,7 +245,7 @@ int FileMain() {
             }
 
             CreateOutput(L"Reason: \n", GetColorValue(L"Info"));
-            CreateOutput(result.errorFront + L":Uncaught " + result.message + L"\n", GetColorValue(L"Error"));
+            CreateOutput(result.errorFront + L":" + result.message + L"\n", GetColorValue(L"Error"));
             OutputStack(result.errorStack);
 
             CreateOutput(L"\n");
@@ -404,7 +404,7 @@ int FastCgiMain(std::wstring startFilePath = L"") {
                     ULL csize = outputTemp.size();
 
                     std::string code = "<!DOCTYPE html><html lang=\"zh-cmn-Hans\"><head></head><body>";
-                    code += "<p style=\"color: #FF4444\">" + wstringToString(ji.errorFront) + ":Uncaught " + wstringToString(ji.message) + "</p>";
+                    code += "<p style=\"color: #FF4444\">" + wstringToString(ji.errorFront) + ":" + wstringToString(ji.message) + "</p>";
                     for (ULL i = tsize; i < csize; ++i) {
                         std::wstring key = outputTemp.at(static_cast<size_t>(i)).first;
                         const std::wstring& value = outputTemp.at(static_cast<size_t>(i)).second;
