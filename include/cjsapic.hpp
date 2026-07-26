@@ -8,7 +8,7 @@ extern "C" {
 
 #define jsm JavaScriptMethod
 
-    bool FindCJSValue(JSMData* jsmdPtr, CJSValue cjsv, JSV& jsv) {
+    CJSBool FindCJSValue(JSMData* jsmdPtr, CJSValue cjsv, JSV& jsv) {
         auto it = jsmdPtr->hModuleCJSValueList.find(cjsv);
         if (it != jsmdPtr->hModuleCJSValueList.end()) {
             jsv = it->second;
@@ -17,16 +17,16 @@ extern "C" {
         return false;
     }
 
-    CAEXP bool cjs_FreeCJSValue(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_FreeCJSValue(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
         return jsmdPtr->hModuleCJSValueList.count(in_cjsv) && jsmdPtr->hModuleCJSValueList.erase(in_cjsv);
     }
-    CAEXP bool cjs_FreePromise(CJSVERSION version, CJSContext in_ctx, CJSPromise in_promise) {
-        return cjs_FreeCJSValue(version, in_ctx, in_promise.promise) && cjs_FreeCJSValue(version, in_ctx, in_promise.resolve) && cjs_FreeCJSValue(version, in_ctx, in_promise.reject);
+    CAEXP CJSBool cjs_FreePromise(CJSContext in_ctx, CJSPromise in_promise) {
+        return cjs_FreeCJSValue(in_ctx, in_promise.promise) && cjs_FreeCJSValue(in_ctx, in_promise.resolve) && cjs_FreeCJSValue(in_ctx, in_promise.reject);
     }
-    CAEXP bool cjs_FreeAllCJSValue(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP CJSBool cjs_FreeAllCJSValue(CJSContext in_ctx) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -34,91 +34,91 @@ extern "C" {
         return true;
     }
 
-    CAEXP CJSValue cjs_NewNull(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP CJSValue cjs_NewNull(CJSContext in_ctx) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, JS_NULL);
     }
-    CAEXP CJSValue cjs_NewUndefined(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP CJSValue cjs_NewUndefined(CJSContext in_ctx) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, JS_UNDEFINED);
     }
-    CAEXP CJSValue cjs_NewUninititalized(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP CJSValue cjs_NewUninititalized(CJSContext in_ctx) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, JS_UNINITIALIZED);
     }
-    CAEXP CJSValue cjs_GetGlobalObject(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP CJSValue cjs_GetGlobalObject(CJSContext in_ctx) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewGlobalObject(ctx));
     }
-    CAEXP CJSValue cjs_NewString(CJSVERSION version, CJSContext in_ctx, cjs_string in_propName) {
+    CAEXP CJSValue cjs_NewString(CJSContext in_ctx, const char* in_propName) {
         JSContext* ctx = (JSContext*)in_ctx;
-        return jsm::GetCJSValue(ctx, jsm::NewString(ctx, wstringToString(in_propName)));
+        return jsm::GetCJSValue(ctx, jsm::NewString(ctx, in_propName));
     }
-    CAEXP CJSValue cjs_NewBool(CJSVERSION version, CJSContext in_ctx, cjs_bool in_bool) {
+    CAEXP CJSValue cjs_NewBool(CJSContext in_ctx, cjs_bool in_bool) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewBool(ctx, in_bool));
     }
-    CAEXP CJSValue cjs_NewNumber(CJSVERSION version, CJSContext in_ctx, cjs_double in_num) {
+    CAEXP CJSValue cjs_NewNumber(CJSContext in_ctx, cjs_double in_num) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewNumber(ctx, in_num));
     }
-    CAEXP CJSValue cjs_NewInt64(CJSVERSION version, CJSContext in_ctx, cjs_int64 in_num) {
+    CAEXP CJSValue cjs_NewInt64(CJSContext in_ctx, cjs_int64 in_num) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewInt64(ctx, in_num));
     }
-    CAEXP CJSValue cjs_NewDouble(CJSVERSION version, CJSContext in_ctx, cjs_double in_num) {
+    CAEXP CJSValue cjs_NewDouble(CJSContext in_ctx, cjs_double in_num) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewDouble(ctx, in_num));
     }
-    CAEXP CJSValue cjs_NewUint64(CJSVERSION version, CJSContext in_ctx, cjs_uint64 in_num) {
+    CAEXP CJSValue cjs_NewUint64(CJSContext in_ctx, cjs_uint64 in_num) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewUint64(ctx, in_num));
     }
-    CAEXP CJSValue cjs_NewArrayBuffer(CJSVERSION version, CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
+    CAEXP CJSValue cjs_NewArrayBuffer(CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewArrayBuffer(ctx, BYTEBUFFER(in_byte, in_byte + in_byte_size)));
     }
-    CAEXP CJSValue cjs_NewError(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP CJSValue cjs_NewError(CJSContext in_ctx) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewError(ctx));
     }
-    CAEXP CJSValue cjs_NewTypeError(CJSVERSION version, CJSContext in_ctx, cjs_string in_error) {
+    CAEXP CJSValue cjs_NewTypeError(CJSContext in_ctx, cjs_string in_error) {
         JSContext* ctx = (JSContext*)in_ctx;
-        return jsm::GetCJSValue(ctx, jsm::NewTypeError(ctx, wstringToString(in_error)));
+        return jsm::GetCJSValue(ctx, jsm::NewTypeError(ctx, (in_error)));
     }
-    CAEXP CJSValue cjs_NewRangeError(CJSVERSION version, CJSContext in_ctx, cjs_string in_error) {
+    CAEXP CJSValue cjs_NewRangeError(CJSContext in_ctx, cjs_string in_error) {
         JSContext* ctx = (JSContext*)in_ctx;
-        return jsm::GetCJSValue(ctx, jsm::NewRangeError(ctx, wstringToString(in_error)));
+        return jsm::GetCJSValue(ctx, jsm::NewRangeError(ctx, (in_error)));
     }
-    CAEXP CJSValue cjs_NewSyntaxError(CJSVERSION version, CJSContext in_ctx, cjs_string in_error) {
+    CAEXP CJSValue cjs_NewSyntaxError(CJSContext in_ctx, cjs_string in_error) {
         JSContext* ctx = (JSContext*)in_ctx;
-        return jsm::GetCJSValue(ctx, jsm::NewSyntaxError(ctx, wstringToString(in_error)));
+        return jsm::GetCJSValue(ctx, jsm::NewSyntaxError(ctx, (in_error)));
     }
-    CAEXP CJSValue cjs_NewInternalError(CJSVERSION version, CJSContext in_ctx, cjs_string in_error) {
+    CAEXP CJSValue cjs_NewInternalError(CJSContext in_ctx, cjs_string in_error) {
         JSContext* ctx = (JSContext*)in_ctx;
-        return jsm::GetCJSValue(ctx, jsm::NewInternalError(ctx, wstringToString(in_error)));
+        return jsm::GetCJSValue(ctx, jsm::NewInternalError(ctx, (in_error)));
     }
-    CAEXP CJSValue cjs_NewPlainError(CJSVERSION version, CJSContext in_ctx, cjs_string in_error) {
+    CAEXP CJSValue cjs_NewPlainError(CJSContext in_ctx, cjs_string in_error) {
         JSContext* ctx = (JSContext*)in_ctx;
-        return jsm::GetCJSValue(ctx, jsm::NewPlainError(ctx, wstringToString(in_error)));
+        return jsm::GetCJSValue(ctx, jsm::NewPlainError(ctx, (in_error)));
     }
-    CAEXP CJSValue cjs_NewObject(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP CJSValue cjs_NewObject(CJSContext in_ctx) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewObject(ctx));
     }
-    CAEXP CJSValue cjs_NewArray(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP CJSValue cjs_NewArray(CJSContext in_ctx) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewArray(ctx, {}));
     }
-    CAEXP CJSValue cjs_NewFunction(CJSVERSION version, CJSContext in_ctx, cjs_string in_name, cjs_function in_func, cjs_int argLength = -1) {
+    CAEXP CJSValue cjs_NewFunction(CJSContext in_ctx, cjs_string in_name, cjs_function in_func, cjs_int argLength = -1) {
         JSContext* ctx = (JSContext*)in_ctx;
-        return jsm::GetCJSValue(ctx, jsm::NewFunction(ctx, wstringToString(in_name), in_func, argLength));
+        return jsm::GetCJSValue(ctx, jsm::NewFunction(ctx, (in_name), in_func, argLength));
     }
-    CAEXP CJSValue cjs_NewConstructor(CJSVERSION version, CJSContext in_ctx, cjs_string in_name, cjs_function in_func, cjs_int argLength = -1) {
+    CAEXP CJSValue cjs_NewConstructor(CJSContext in_ctx, cjs_string in_name, cjs_function in_func, cjs_int argLength = -1) {
         JSContext* ctx = (JSContext*)in_ctx;
-        return jsm::GetCJSValue(ctx, jsm::NewConstructor(ctx, wstringToString(in_name), in_func, argLength));
+        return jsm::GetCJSValue(ctx, jsm::NewConstructor(ctx, (in_name), in_func, argLength));
     }
-    CAEXP CJSValue cjs_NewIterator(CJSVERSION version, CJSContext in_ctx, CJSValue in_obj, cjs_string in_name, cjs_function in_func, cjs_int64 flags = -1) {
+    CAEXP CJSValue cjs_NewIterator(CJSContext in_ctx, CJSValue in_obj, cjs_string in_name, cjs_function in_func, cjs_int64 flags = -1) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -126,33 +126,33 @@ extern "C" {
         if (!FindCJSValue(jsmdPtr, in_obj, obj)) {
             return {};
         }
-        return jsm::GetCJSValue(ctx, jsm::NewIterator(ctx, obj, wstringToString(in_name), in_func, flags));
+        return jsm::GetCJSValue(ctx, jsm::NewIterator(ctx, obj, (in_name), in_func, flags));
     }
-    CAEXP CJSValue cjs_NewUint8Array(CJSVERSION version, CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
+    CAEXP CJSValue cjs_NewUint8Array(CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewUint8Array(ctx, BYTEBUFFER(in_byte, in_byte + in_byte_size)));
     }
-    CAEXP CJSValue cjs_NewUint16Array(CJSVERSION version, CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
+    CAEXP CJSValue cjs_NewUint16Array(CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewUint16Array(ctx, BYTEBUFFER(in_byte, in_byte + in_byte_size)));
     }
-    CAEXP CJSValue cjs_NewUint32Array(CJSVERSION version, CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
+    CAEXP CJSValue cjs_NewUint32Array(CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewUint32Array(ctx, BYTEBUFFER(in_byte, in_byte + in_byte_size)));
     }
-    CAEXP CJSValue cjs_NewInt8Array(CJSVERSION version, CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
+    CAEXP CJSValue cjs_NewInt8Array(CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewInt8Array(ctx, BYTEBUFFER(in_byte, in_byte + in_byte_size)));
     }
-    CAEXP CJSValue cjs_NewInt16Array(CJSVERSION version, CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
+    CAEXP CJSValue cjs_NewInt16Array(CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewInt16Array(ctx, BYTEBUFFER(in_byte, in_byte + in_byte_size)));
     }
-    CAEXP CJSValue cjs_NewInt32Array(CJSVERSION version, CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
+    CAEXP CJSValue cjs_NewInt32Array(CJSContext in_ctx, cjs_size in_byte_size, cjs_byte* in_byte) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, jsm::NewInt32Array(ctx, BYTEBUFFER(in_byte, in_byte + in_byte_size)));
     }
-    CAEXP CJSPromise cjs_NewPromise(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP CJSPromise cjs_NewPromise(CJSContext in_ctx) {
         JSContext* ctx = (JSContext*)in_ctx;
         CJSPromise promise = {};
         Promise opromise = jsm::NewPromise(ctx);
@@ -161,7 +161,7 @@ extern "C" {
         promise.resolve = jsm::GetCJSValue(ctx, opromise.resolve);
         return promise;
     }
-    CAEXP CJSValue cjs_GetProperty(CJSVERSION version, CJSContext in_ctx, CJSValue in_obj, CJSValue in_propName) {
+    CAEXP CJSValue cjs_GetProperty(CJSContext in_ctx, CJSValue in_obj, CJSValue in_propName) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -171,10 +171,10 @@ extern "C" {
             return {};
         }
         JSV property = {};
-        bool ret = jsm::ReadObjectPropertyValue(ctx, obj, propName, property);
+        CJSBool ret = jsm::ReadObjectPropertyValue(ctx, obj, propName, property);
         return (!ret) ? CJS_ERROR : jsm::GetCJSValue(ctx, property);
     }
-    CAEXP CJSArgumentPackage cjs_GetArgumentPackage(CJSVERSION version, JSContext* in_ctx, JSValueConst in_thisVal, int in_argumentCount, JSValueConst* in_argumentValues) {
+    CAEXP CJSArgumentPackage cjs_GetArgumentPackage(JSContext* in_ctx, JSValueConst in_thisVal, int in_argumentCount, JSValueConst* in_argumentValues) {
 
         JSMData* jsmdPtr = nullptr;
         if (!GetData(in_ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -199,19 +199,19 @@ extern "C" {
 
         return jsmdPtr->argumentPackageList[id];
     }
-    CAEXP bool cjs_FreeArgumentPackage(CJSVERSION version, CJSArgumentPackage cap) {
+    CAEXP CJSBool cjs_FreeArgumentPackage(CJSArgumentPackage cap) {
         JSMData* jsmdPtr = nullptr;
         if (!GetData((JSContext*)cap.ctx, &jsmdPtr) || jsmdPtr == nullptr || !jsmdPtr->argumentPackageList.count(cap.id)) return {};
-        bool ret = true;
-        if (!cjs_FreeCJSValue(version, cap.ctx, cap.thisVal)) ret = false;
+        CJSBool ret = true;
+        if (!cjs_FreeCJSValue(cap.ctx, cap.thisVal)) ret = false;
         for (CJSSize i = 0; i < cap.argumentCount; i++) {
-            if (!cjs_FreeCJSValue(version, cap.ctx, cap.argumentValues[i])) ret = false;
+            if (!cjs_FreeCJSValue(cap.ctx, cap.argumentValues[i])) ret = false;
         }
         delete[] cap.argumentValues;
         if (!jsmdPtr->argumentPackageList.erase(cap.id)) ret = false;
         return ret;
     }
-    CAEXP bool cjs_SetProperty(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, CJSValue in_propName, CJSValue in_propValue, cjs_int64 flags) {
+    CAEXP CJSBool cjs_SetProperty(CJSContext in_ctx, CJSValue in_cjsv, CJSValue in_propName, CJSValue in_propValue, cjs_int64 flags) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -223,7 +223,7 @@ extern "C" {
         }
         return jsm::SetAttribute(ctx, jsv, propName, propValue, flags);
     }
-    CAEXP bool cjs_SetPrototype(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, CJSValue in_target) {
+    CAEXP CJSBool cjs_SetPrototype(CJSContext in_ctx, CJSValue in_cjsv, CJSValue in_target) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -234,7 +234,7 @@ extern "C" {
         }
         return jsm::SetPrototype(ctx, jsv, target);
     }
-    CAEXP CJSValue cjs_GetPrototype(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSValue cjs_GetPrototype(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -244,7 +244,7 @@ extern "C" {
         }
         return jsm::GetCJSValue(ctx, jsm::GetPrototype(ctx, jsv));
     }
-    CAEXP bool cjs_RemoveProperty(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, CJSValue in_propName) {
+    CAEXP CJSBool cjs_RemoveProperty(CJSContext in_ctx, CJSValue in_cjsv, CJSValue in_propName) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -255,7 +255,7 @@ extern "C" {
         }
         return jsm::RemoveAttribute(ctx, jsv, propName);
     }
-    CAEXP JSValue cjs_GetOriginValue(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP JSValue cjs_GetOriginValue(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -265,7 +265,7 @@ extern "C" {
         }
         return jsv.get(0);
     }
-    CAEXP JSValue cjs_GetReturnValue(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP JSValue cjs_GetReturnValue(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -276,10 +276,10 @@ extern "C" {
         jsmdPtr->argumentPackageList.erase(in_cjsv);
         return jsv.get(1);
     }
-    CAEXP JSContext* cjs_GetOriginContext(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP JSContext* cjs_GetOriginContext(CJSContext in_ctx) {
         return (JSContext*)in_ctx;
     }
-    CAEXP CJSValue cjs_CallFunction(CJSVERSION version, CJSContext in_ctx, CJSValue in_func, CJSValue in_this, cjs_int in_argumentCount, CJSValue* in_argumentValues) {
+    CAEXP CJSValue cjs_CallFunction(CJSContext in_ctx, CJSValue in_func, CJSValue in_this, cjs_int in_argumentCount, CJSValue* in_argumentValues) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -299,7 +299,7 @@ extern "C" {
         }
         return jsm::GetCJSValue(ctx, jsm::CallFunction(ctx, func, thisVal, argument));
     }
-    CAEXP CJSValue cjs_CallConstructor(CJSVERSION version, CJSContext in_ctx, CJSValue in_func, cjs_int in_argumentCount, CJSValue* in_argumentValues) {
+    CAEXP CJSValue cjs_CallConstructor(CJSContext in_ctx, CJSValue in_func, cjs_int in_argumentCount, CJSValue* in_argumentValues) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -318,11 +318,11 @@ extern "C" {
         }
         return jsm::GetCJSValue(ctx, jsm::CallConstructor(ctx, func, argument));
     }
-    CAEXP CJSValue cjs_GetCJSValue(CJSVERSION version, CJSContext in_ctx, JSValue in_jsvalue) {
+    CAEXP CJSValue cjs_GetCJSValue(CJSContext in_ctx, JSValue in_jsvalue) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::GetCJSValue(ctx, JSV(ctx, in_jsvalue).cset(1));
     }
-    CAEXP bool cjs_ArrayPushBack(CJSVERSION version, CJSContext in_ctx, CJSValue in_array, CJSValue in_item) {
+    CAEXP CJSBool cjs_ArrayPushBack(CJSContext in_ctx, CJSValue in_array, CJSValue in_item) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -333,7 +333,7 @@ extern "C" {
         }
         return jsm::ArrayPushBack(ctx, array, item);
     }
-    CAEXP bool cjs_ArrayPopBack(CJSVERSION version, CJSContext in_ctx, CJSValue in_array) {
+    CAEXP CJSBool cjs_ArrayPopBack(CJSContext in_ctx, CJSValue in_array) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -343,7 +343,7 @@ extern "C" {
         }
         return jsm::ArrayPopBack(ctx, array);
     }
-    CAEXP bool cjs_ArrayInsert(CJSVERSION version, CJSContext in_ctx, CJSValue in_array, cjs_uint64 insert_idx, CJSValue in_item) {
+    CAEXP CJSBool cjs_ArrayInsert(CJSContext in_ctx, CJSValue in_array, cjs_uint64 insert_idx, CJSValue in_item) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -354,7 +354,7 @@ extern "C" {
         }
         return jsm::ArrayInsert(ctx, array, insert_idx, item);
     }
-    CAEXP bool cjs_ArrayErase(CJSVERSION version, CJSContext in_ctx, CJSValue in_array, cjs_uint64 erase_idx) {
+    CAEXP CJSBool cjs_ArrayErase(CJSContext in_ctx, CJSValue in_array, cjs_uint64 erase_idx) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -364,7 +364,7 @@ extern "C" {
         }
         return jsm::ArrayErase(ctx, array, erase_idx);
     }
-    CAEXP bool cjs_ArrayClear(CJSVERSION version, CJSContext in_ctx, CJSValue in_array) {
+    CAEXP CJSBool cjs_ArrayClear(CJSContext in_ctx, CJSValue in_array) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -374,7 +374,7 @@ extern "C" {
         }
         return jsm::ArrayClear(ctx, array);
     }
-    CAEXP bool cjs_ArrayResize(CJSVERSION version, CJSContext in_ctx, CJSValue in_array, cjs_uint64 new_size) {
+    CAEXP CJSBool cjs_ArrayResize(CJSContext in_ctx, CJSValue in_array, cjs_uint64 new_size) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -384,7 +384,7 @@ extern "C" {
         }
         return jsm::ArrayResize(ctx, array, new_size);
     }
-    CAEXP bool cjs_ArrayAssign(CJSVERSION version, CJSContext in_ctx, CJSValue in_array, cjs_uint64 count, CJSValue in_item) {
+    CAEXP CJSBool cjs_ArrayAssign(CJSContext in_ctx, CJSValue in_array, cjs_uint64 count, CJSValue in_item) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -395,7 +395,7 @@ extern "C" {
         }
         return jsm::ArrayAssign(ctx, array, count, item);
     }
-    CAEXP CJSValue cjs_ArrayAt(CJSVERSION version, CJSContext in_ctx, CJSValue in_array, cjs_uint64 idx) {
+    CAEXP CJSValue cjs_ArrayAt(CJSContext in_ctx, CJSValue in_array, cjs_uint64 idx) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -406,7 +406,7 @@ extern "C" {
         JSValue js_val = jsm::ArrayAt(ctx, array, idx);
         return jsm::GetCJSValue(ctx, JSV(ctx, js_val).cset(1));
     }
-    CAEXP CJSValue cjs_DupValue(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSValue cjs_DupValue(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -416,7 +416,7 @@ extern "C" {
         }
         return jsm::GetCJSValue(ctx, jsv);
     }
-    CAEXP bool cjs_FreeValue(CJSVERSION version, CJSContext in_ctx, void* in_data) {
+    CAEXP CJSBool cjs_FreeValue(CJSContext in_ctx, CJSPtr in_data) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -429,7 +429,7 @@ extern "C" {
         }
         return false;
     }
-    CAEXP bool cjs_ReadAsArrayBufferView(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
+    CAEXP CJSBool cjs_ReadAsArrayBufferView(CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -455,7 +455,7 @@ extern "C" {
 
         return true;
     }
-    CAEXP bool cjs_ReadAsArrayBuffer(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
+    CAEXP CJSBool cjs_ReadAsArrayBuffer(CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -481,7 +481,7 @@ extern "C" {
 
         return true;
     }
-    CAEXP bool cjs_ReadAsUint8Array(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
+    CAEXP CJSBool cjs_ReadAsUint8Array(CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -507,7 +507,7 @@ extern "C" {
 
         return true;
     }
-    CAEXP bool cjs_ReadAsUint16Array(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
+    CAEXP CJSBool cjs_ReadAsUint16Array(CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -533,7 +533,7 @@ extern "C" {
 
         return true;
     }
-    CAEXP bool cjs_ReadAsUint32Array(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
+    CAEXP CJSBool cjs_ReadAsUint32Array(CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -559,7 +559,7 @@ extern "C" {
 
         return true;
     }
-    CAEXP bool cjs_ReadAsInt8Array(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
+    CAEXP CJSBool cjs_ReadAsInt8Array(CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -585,7 +585,7 @@ extern "C" {
 
         return true;
     }
-    CAEXP bool cjs_ReadAsInt16Array(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
+    CAEXP CJSBool cjs_ReadAsInt16Array(CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -611,7 +611,7 @@ extern "C" {
 
         return true;
     }
-    CAEXP bool cjs_ReadAsInt32Array(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
+    CAEXP CJSBool cjs_ReadAsInt32Array(CJSContext in_ctx, CJSValue in_cjsv, cjs_size* out_sizePtr, cjs_byte** out_dataPtr) {
 
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
@@ -638,7 +638,7 @@ extern "C" {
 
         return true;
     }
-    CAEXP bool cjs_ReadAsBool(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_bool* out_data) {
+    CAEXP CJSBool cjs_ReadAsBool(CJSContext in_ctx, CJSValue in_cjsv, cjs_bool* out_data) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -647,7 +647,7 @@ extern "C" {
         if (!jsm::ReadJSValueAsBool(ctx, jsv, *out_data)) return false;
         return true;
     }
-    CAEXP bool cjs_ReadAsString(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_string* out_data) {
+    CAEXP CJSBool cjs_ReadAsString(CJSContext in_ctx, CJSValue in_cjsv, cjs_string* out_data) {
 
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
@@ -662,7 +662,7 @@ extern "C" {
             return false;
         }
         cjs_string dataPtr = nullptr;
-        cjs_size dataSize = static_cast<cjs_size>(CopyWstringData(stringToWstring(data), &dataPtr));
+        cjs_size dataSize = static_cast<cjs_size>(CopyStringData(data, &dataPtr));
 
         CJSID id = jsm::GetNewCJSByteId(ctx);
         jsmdPtr->cjsByteDataList[id].data = (void*)dataPtr;
@@ -673,7 +673,7 @@ extern "C" {
 
         return true;
     }
-    CAEXP bool cjs_ReadAsInt32(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_int32* out_data) {
+    CAEXP CJSBool cjs_ReadAsInt32(CJSContext in_ctx, CJSValue in_cjsv, cjs_int32* out_data) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -682,7 +682,7 @@ extern "C" {
         if (!jsm::ReadJSValueAsInt32(ctx, jsv, *out_data)) return false;
         return true;
     }
-    CAEXP bool cjs_ReadAsInt64(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_int64* out_data) {
+    CAEXP CJSBool cjs_ReadAsInt64(CJSContext in_ctx, CJSValue in_cjsv, cjs_int64* out_data) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -691,7 +691,7 @@ extern "C" {
         if (!jsm::ReadJSValueAsInt64(ctx, jsv, *out_data)) return false;
         return true;
     }
-    CAEXP bool cjs_ReadAsUint64(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_uint64* out_data) {
+    CAEXP CJSBool cjs_ReadAsUint64(CJSContext in_ctx, CJSValue in_cjsv, cjs_uint64* out_data) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -700,7 +700,7 @@ extern "C" {
         if (!jsm::ReadJSValueAsUint64(ctx, jsv, *out_data)) return false;
         return true;
     }
-    CAEXP bool cjs_ReadAsDouble(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_double* out_data) {
+    CAEXP CJSBool cjs_ReadAsDouble(CJSContext in_ctx, CJSValue in_cjsv, cjs_double* out_data) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -709,204 +709,204 @@ extern "C" {
         if (!jsm::ReadJSValueAsDouble(ctx, jsv, *out_data)) return false;
         return true;
     }
-    CAEXP CJSValue CJS_Eval(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv, cjs_string in_code, cjs_string in_path) {
+    CAEXP CJSValue CJS_Eval(CJSContext in_ctx, CJSValue in_cjsv, cjs_string in_code, cjs_string in_path) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
-        JSINFO ji = jsmdPtr->js->eval(in_code, in_path);
+        JSINFO ji = jsmdPtr->js->eval(stringToWstring(in_code), stringToWstring(in_path));
         if (!ji.isValid) return CJS_ERROR;
         return jsm::GetCJSValue(ctx, ji.result);
     }
-    CAEXP bool cjs_IsUndefined(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsUndefined(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsUndefined(jsv.get(0));
     }
-    CAEXP bool cjs_IsNull(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsNull(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsNull(jsv.get(0));
     }
-    CAEXP bool cjs_IsNumber(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsNumber(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsNull(jsv.get(0));
     }
-    CAEXP bool cjs_IsBigInt(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsBigInt(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsBigInt(jsv.get(0));
     }
-    CAEXP bool cjs_IsBool(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsBool(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsBool(jsv.get(0));
     }
-    CAEXP bool cjs_IsException(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsException(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsException(jsv.get(0));
     }
-    CAEXP bool cjs_IsUninitialized(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsUninitialized(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsUninitialized(jsv.get(0));
     }
-    CAEXP bool cjs_IsString(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsString(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsString(jsv.get(0));
     }
-    CAEXP bool cjs_IsSymbol(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsSymbol(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsSymbol(jsv.get(0));
     }
-    CAEXP bool cjs_IsObject(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsObject(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsObject(jsv.get(0));
     }
-    CAEXP bool cjs_IsModule(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsModule(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsModule(jsv.get(0));
     }
-    CAEXP bool cjs_IsFunction(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsFunction(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsFunction(ctx, jsv.get(0));
     }
-    CAEXP bool cjs_IsConstructor(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsConstructor(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsConstructor(ctx, jsv.get(0));
     }
-    CAEXP bool cjs_IsRegExp(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsRegExp(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsRegExp(jsv.get(0));
     }
-    CAEXP bool cjs_IsMap(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsMap(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsMap(jsv.get(0));
     }
-    CAEXP bool cjs_IsSet(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsSet(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsSet(jsv.get(0));
     }
-    CAEXP bool cjs_IsWeakRef(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsWeakRef(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsWeakRef(jsv.get(0));
     }
-    CAEXP bool cjs_IsWeakSet(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsWeakSet(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsWeakSet(jsv.get(0));
     }
-    CAEXP bool cjs_IsWeakMap(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsWeakMap(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsWeakMap(jsv.get(0));
     }
-    CAEXP bool cjs_IsDataView(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsDataView(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsDataView(jsv.get(0));
     }
-    CAEXP bool cjs_IsArray(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsArray(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsArray(jsv.get(0));
     }
-    CAEXP bool cjs_IsProxy(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsProxy(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsProxy(jsv.get(0));
     }
-    CAEXP bool cjs_IsError(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsError(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsError(jsv.get(0));
     }
-    CAEXP bool cjs_IsUncatchableError(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsUncatchableError(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsUncatchableError(jsv.get(0));
     }
-    CAEXP bool cjs_IsDate(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsDate(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsDate(jsv.get(0));
     }
-    CAEXP int cjs_IsExtensible(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP int cjs_IsExtensible(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsExtensible(ctx, jsv.get(0));
     }
-    CAEXP bool cjs_IsArrayBuffer(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsArrayBuffer(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return JS_IsArrayBuffer(jsv.get(0));
     }
-    CAEXP bool cjs_IsSameValue(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv1, CJSValue in_cjsv2) {
+    CAEXP CJSBool cjs_IsSameValue(CJSContext in_ctx, CJSValue in_cjsv1, CJSValue in_cjsv2) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv1 = {};
@@ -914,7 +914,7 @@ extern "C" {
         if (!FindCJSValue(jsmdPtr, in_cjsv1, jsv1) || !FindCJSValue(jsmdPtr, in_cjsv2, jsv2)) return {};
         return JS_IsSameValue(ctx, jsv1.get(0), jsv2.get());
     }
-    CAEXP int cjs_IsEqual(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv1, CJSValue in_cjsv2) {
+    CAEXP int cjs_IsEqual(CJSContext in_ctx, CJSValue in_cjsv1, CJSValue in_cjsv2) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv1 = {};
@@ -922,7 +922,7 @@ extern "C" {
         if (!FindCJSValue(jsmdPtr, in_cjsv1, jsv1) || !FindCJSValue(jsmdPtr, in_cjsv2, jsv2)) return {};
         return JS_IsEqual(ctx, jsv1.get(0), jsv2.get(0));
     }
-    CAEXP bool cjs_IsStrictEqual(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv1, CJSValue in_cjsv2) {
+    CAEXP CJSBool cjs_IsStrictEqual(CJSContext in_ctx, CJSValue in_cjsv1, CJSValue in_cjsv2) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv1 = {};
@@ -930,7 +930,7 @@ extern "C" {
         if (!FindCJSValue(jsmdPtr, in_cjsv1, jsv1) || !FindCJSValue(jsmdPtr, in_cjsv2, jsv2)) return {};
         return JS_IsStrictEqual(ctx, jsv1.get(0), jsv2.get(0));
     }
-    CAEXP bool cjs_IsSameValueZero(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv1, CJSValue in_cjsv2) {
+    CAEXP CJSBool cjs_IsSameValueZero(CJSContext in_ctx, CJSValue in_cjsv1, CJSValue in_cjsv2) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv1 = {};
@@ -938,7 +938,7 @@ extern "C" {
         if (!FindCJSValue(jsmdPtr, in_cjsv1, jsv1) || !FindCJSValue(jsmdPtr, in_cjsv2, jsv2)) return {};
         return JS_IsSameValueZero(ctx, jsv1.get(0), jsv2.get(0));
     }
-    CAEXP int cjs_IsInstanceOf(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv1, CJSValue in_cjsv2) {
+    CAEXP int cjs_IsInstanceOf(CJSContext in_ctx, CJSValue in_cjsv1, CJSValue in_cjsv2) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv1 = {};
@@ -946,28 +946,28 @@ extern "C" {
         if (!FindCJSValue(jsmdPtr, in_cjsv1, jsv1) || !FindCJSValue(jsmdPtr, in_cjsv2, jsv2)) return {};
         return JS_IsInstanceOf(ctx, jsv1.get(0), jsv2.get(0));
     }
-    CAEXP bool cjs_IsPromise(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsPromise(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return jsm::GetSymbolName(ctx, jsv) == "Promise";
     }
-    CAEXP bool cjs_IsFormData(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsFormData(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return jsm::GetSymbolName(ctx, jsv) == "FormData";
     }
-    CAEXP bool cjs_IsBlob(CJSVERSION version, CJSContext in_ctx, CJSValue in_cjsv) {
+    CAEXP CJSBool cjs_IsBlob(CJSContext in_ctx, CJSValue in_cjsv) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         JSV jsv = {};
         if (!FindCJSValue(jsmdPtr, in_cjsv, jsv)) return {};
         return jsm::GetSymbolName(ctx, jsv) == "Blob";
     }
-    CAEXP CJSValue cjs_PromiseGetResult(CJSVERSION version, CJSContext in_ctx, CJSValue in_promise) {
+    CAEXP CJSValue cjs_PromiseGetResult(CJSContext in_ctx, CJSValue in_promise) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -975,7 +975,7 @@ extern "C" {
         if (!FindCJSValue(jsmdPtr, in_promise, js_promise)) return {};
         return jsm::GetCJSValue(ctx, JSV(JS_PromiseResult(ctx, js_promise.get(0))).cset(1));
     }
-    CAEXP CJSPromiseState cjs_PromiseGetState(CJSVERSION version, CJSContext in_ctx, CJSValue in_promise) {
+    CAEXP CJSPromiseState cjs_PromiseGetState(CJSContext in_ctx, CJSValue in_promise) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -994,8 +994,8 @@ extern "C" {
         }
         return cjs_state;
     }
-    CAEXP bool cjs_PromiseResolve(CJSVERSION version, CJSContext in_ctx, CJSValue in_promise, CJSValue in_value) {
-        CJSPromiseState ps = cjs_PromiseGetState(version, in_ctx, in_promise);
+    CAEXP CJSBool cjs_PromiseResolve(CJSContext in_ctx, CJSValue in_promise, CJSValue in_value) {
+        CJSPromiseState ps = cjs_PromiseGetState(in_ctx, in_promise);
         if (ps != CJS_STATE_PROMISE_PENDING) return {};
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
@@ -1006,8 +1006,8 @@ extern "C" {
         jsm::CallFunction(ctx, js_promise, js_promise, {js_value});
         return true;
     }
-    CAEXP bool cjs_PromiseReject(CJSVERSION version, CJSContext in_ctx, CJSValue in_promise, CJSValue in_value) {
-        CJSPromiseState ps = cjs_PromiseGetState(version, in_ctx, in_promise);
+    CAEXP CJSBool cjs_PromiseReject(CJSContext in_ctx, CJSValue in_promise, CJSValue in_value) {
+        CJSPromiseState ps = cjs_PromiseGetState(in_ctx, in_promise);
         if (ps != CJS_STATE_PROMISE_PENDING) return {};
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
@@ -1018,7 +1018,7 @@ extern "C" {
         jsm::CallFunction(ctx, js_promise, js_promise, { js_value });
         return true;
     }
-    CAEXP CJSID cjs_EnqueueTask(CJSVERSION version, CJSContext in_ctx, CJSValue in_task, CJSValue in_this, cjs_int in_argumentCount, CJSValue* in_argumentValues) {
+    CAEXP CJSID cjs_EnqueueTask(CJSContext in_ctx, CJSValue in_task, CJSValue in_this, cjs_int in_argumentCount, CJSValue* in_argumentValues) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};
@@ -1035,17 +1035,17 @@ extern "C" {
         }
         return static_cast<CJSID>(jsm::AddTask(ctx, task, thisValue, argument));
     }
-    CAEXP bool CJS_RemoveTask(CJSVERSION version, CJSContext in_ctx, CJSID in_taskId) {
+    CAEXP CJSBool CJS_RemoveTask(CJSContext in_ctx, CJSID in_taskId) {
         JSContext* ctx = (JSContext*)in_ctx;
         return jsm::deleteTask(ctx, static_cast<ULL>(in_taskId));
     }
-    CAEXP CJSValue CJS_QueryTask(CJSVERSION version, CJSContext in_ctx, CJSID in_taskId) {
+    CAEXP CJSValue CJS_QueryTask(CJSContext in_ctx, CJSID in_taskId) {
         JSContext* ctx = (JSContext*)in_ctx;
         TaskData td = jsm::queryTask(ctx, static_cast<ULL>(in_taskId));
         if (!td.isValid) return CJS_STATE_TASK_NOTRUNNED;
         return jsm::GetCJSValue(ctx, td.ret);
     }
-    CAEXP CJSSize CJS_RunTask(CJSVERSION version, CJSContext in_ctx) {
+    CAEXP CJSSize CJS_RunTask(CJSContext in_ctx) {
         JSContext* ctx = (JSContext*)in_ctx;
         JSMData* jsmdPtr = nullptr;
         if (!GetData(ctx, &jsmdPtr) || jsmdPtr == nullptr) return {};

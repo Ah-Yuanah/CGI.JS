@@ -6305,177 +6305,165 @@ namespace cjs {
 
     class ThreadInst {
     public:
-        ThreadInst(std::thread t) {
+        ThreadInst(std::thread&& t) {
             thread = std::move(t);
+            handle = (HANDLE)thread.native_handle();
+            HANDLE hProcess = GetCurrentProcess();
+            BOOL ret = DuplicateHandle(hProcess, handle, hProcess, &ownHandle, 0, FALSE, DUPLICATE_SAME_ACCESS);
+            if (ret == 0) ownHandle = NULL;
+        }
+        ~ThreadInst() {
+            HANDLE hThread = getHandle();
+            if (hThread != INVALID_HANDLE_VALUE) {
+                DWORD exitCode = 0;
+                if (GetExitCodeThread(hThread, &exitCode) && exitCode == STILL_ACTIVE) {
+                    if (WaitForSingleObject(hThread, 1000) != WAIT_OBJECT_0) {
+                        TerminateThread(hThread, 0);
+                    }
+                }
+                CloseHandle(hThread);
+            }
             if (thread.joinable()) {
-                handle = (HANDLE)thread.native_handle();
+                thread.join();
             }
-            else {
-                handle = INVALID_HANDLE_VALUE;
-            }
+            thread = {};
         }
-
-        ~ThreadInst() = default;
-
-        std::thread* get() {
-            return &thread;
+        uint64_t addRef() {
+            if (refCount.load(std::memory_order_acquire) == static_cast<uint64_t>(-1))
+                return static_cast<uint64_t>(-1);
+            return refCount.fetch_add(1, std::memory_order_acq_rel) + 1;
         }
-
+        uint64_t decRef() {
+            uint64_t old = refCount.load(std::memory_order_acquire);
+            if (old == 0)
+                return 0;
+            return refCount.fetch_sub(1, std::memory_order_acq_rel) - 1;
+        }
+        uint64_t getRef() {
+            return refCount.load(std::memory_order_acquire);
+        }
         HANDLE getHandle() {
-            return handle;
+            return ownHandle;
         }
-
-        void setHandle(HANDLE hd) {
-            handle = hd;
+        bool joinable() {
+            return thread.joinable();
         }
-
-        void add() {
-            if (refCount.load() < UINT64_MAX)
-                refCount.fetch_add(1, std::memory_order_relaxed);
+        void detach() {
+            return thread.detach();
         }
-
-        void remove() {
-            if (refCount.load() > 0)
-                refCount.fetch_sub(1, std::memory_order_acq_rel);
+        bool join() {
+            if (!joinable()) return false;
+            thread.join();
+            return true;
         }
-
-        uint64_t read() {
-            return refCount.load();
+        bool isQuit() {
+            HANDLE hThread = getHandle();
+            if (hThread == NULL || hThread == INVALID_HANDLE_VALUE) return true;
+            return WaitForSingleObject(hThread, 0) == WAIT_OBJECT_0;
         }
-
     private:
-        std::thread thread;
-        HANDLE handle = INVALID_HANDLE_VALUE;
+        std::thread thread = {};
+        HANDLE ownHandle = NULL;
+        HANDLE handle = NULL;
         std::atomic<uint64_t> refCount = 0;
-
-        ThreadInst(const ThreadInst&) = delete;
-        ThreadInst& operator=(const ThreadInst&) = delete;
     };
-
     class Thread {
     public:
         void* operator new(size_t) = delete;
         void* operator new[](size_t) = delete;
         void operator delete(void*) = delete;
         void operator delete[](void*) = delete;
+        void* operator new(size_t, void*) = delete;
+        void* operator new[](size_t, void*) = delete;
+        void operator delete(void*, void*) = delete;
+        void operator delete[](void*, void*) = delete;
 
-        Thread() = default;
-
-        Thread(std::thread t) {
-            try {
-                threadInst = new ThreadInst(std::move(t));
-            }
-            catch (...) {
-                throw std::runtime_error("[Thread] Failed to new.");
-            }
-            threadInst->add();
+        Thread() {}
+        Thread(std::thread&& t) {
+            ThreadInst* inst = NewInstance<ThreadInst>(std::move(t));
+            if (!inst) throw std::runtime_error("[Thread] Failed to new instance.");
+            instance.store(inst, std::memory_order_release);
+            inst->addRef();
         }
-
-        Thread(const Thread& other) {
-            threadInst = other.threadInst;
-            if (threadInst) {
-                threadInst->add();
-            }
+        Thread(const Thread& other) noexcept {
+            copy(other);
         }
-
         Thread(Thread&& other) noexcept {
-            threadInst = other.threadInst;
-            other.threadInst = nullptr;
+            move(std::move(other));
         }
-
-        ~Thread() {
-            update();
-        }
-
         Thread& operator=(const Thread& other) {
-            if (this == &other || *this == other)
-                return *this;
-
-            update();
-            threadInst = other.threadInst;
-            if (threadInst) {
-                threadInst->add();
-            }
+            if (this == &other || *this == other) return *this;
+            copy(other);
             return *this;
         }
-
-        bool operator==(const Thread& other) const {
-            return threadInst == other.threadInst;
+        Thread& operator=(Thread&& other) noexcept {
+            if (this == &other) return *this;
+            move(std::move(other));
+            return *this;
         }
-
-        std::thread* get() const {
-            return threadInst ? threadInst->get() : nullptr;
+        bool operator==(const Thread& other) const noexcept {
+            return instance.load(std::memory_order_acquire) == other.instance.load(std::memory_order_acquire);
         }
-
-        HANDLE getHandle() const {
-            return threadInst ? threadInst->getHandle() : INVALID_HANDLE_VALUE;
+        ~Thread() {
+            release();
         }
-
-        bool isValid() const {
-            return threadInst != nullptr;
+        bool isValid() {
+            bool abandoned = isAbandoned.load(std::memory_order_acquire);
+            ThreadInst* inst = instance.load(std::memory_order_acquire);
+            return !abandoned || inst != nullptr;
         }
-
-        HANDLE join() {
-            if (!isValid() || !joinable())
-                return getHandle();
-
-            DWORD tid = GetThreadId(threadInst->getHandle());
-            HANDLE newHandle = OpenThread(THREAD_QUERY_INFORMATION | THREAD_TERMINATE | SYNCHRONIZE, FALSE, tid);
-
-            threadInst->setHandle(newHandle);
-            threadInst->get()->join();
-            return getHandle();
+        void detach() {
+            if (!isValid()) return;
+            instance.load(std::memory_order_acquire)->detach();
         }
-
-        HANDLE detach() {
-            if (!isValid() || !joinable())
-                return getHandle();
-
-            DWORD tid = GetThreadId(threadInst->getHandle());
-            HANDLE newHandle = OpenThread(THREAD_QUERY_INFORMATION | THREAD_TERMINATE | SYNCHRONIZE, FALSE, tid);
-
-            threadInst->setHandle(newHandle);
-            threadInst->get()->detach();
-            return getHandle();
+        bool join() {
+            if (!isValid()) return false;
+            return instance.load(std::memory_order_acquire)->join();
         }
-
         bool joinable() {
-            return isValid() ? threadInst->get()->joinable() : false;
+            if (!isValid()) return false;
+            return instance.load(std::memory_order_acquire)->joinable();
         }
-
-        bool isQuit() {
-            HANDLE h = getHandle();
-            if (h == NULL || h == INVALID_HANDLE_VALUE)
-                return true;
-            return WaitForSingleObject(h, 0) == WAIT_OBJECT_0;
+        bool quited() {
+            if (!isValid()) return true;
+            return instance.load(std::memory_order_acquire)->isQuit();
         }
-
+        void abandon() {
+            instance.store(nullptr, std::memory_order_release);
+            isAbandoned.store(true, std::memory_order_release);
+        }
+        bool abandoned() {
+            return isAbandoned.load(std::memory_order_acquire);
+        }
+        HANDLE handle() {
+            if (!isValid()) return NULL;
+            return instance.load(std::memory_order_acquire)->getHandle();
+        }
     private:
-        ThreadInst* threadInst = nullptr;
+        std::atomic<bool> isAbandoned = false;
+        std::atomic<ThreadInst*> instance = nullptr;
 
-        void update() {
-            if (!threadInst) return;
-
-            threadInst->remove();
-            if (threadInst->read() == 0) {
-                HANDLE hThread = threadInst->getHandle();
-                if (hThread != INVALID_HANDLE_VALUE) {
-                    DWORD exitCode = 0;
-                    if (GetExitCodeThread(hThread, &exitCode) && exitCode == STILL_ACTIVE) {
-                        if (WaitForSingleObject(hThread, 1000) != WAIT_OBJECT_0) {
-                            TerminateThread(hThread, 0);
-                        }
-                        if (threadInst->get()->joinable()) {
-                            threadInst->get()->join();
-                        }
-                    }
-
-                    CloseHandle(hThread);
-                }
-
-                delete threadInst;
+        void release() {
+            bool abandoned = isAbandoned.load(std::memory_order_acquire);
+            ThreadInst* inst = instance.load(std::memory_order_acquire);
+            if (abandoned || inst == nullptr) return;
+            if (inst->decRef() == 0) {
+                delete inst;
             }
-            threadInst = nullptr;
+            instance.store(nullptr, std::memory_order_release);
+        }
+        void copy(const Thread& other) {
+            release();
+            ThreadInst* otherInst = other.instance.load(std::memory_order_acquire);
+            instance.store(otherInst, std::memory_order_release);
+            if (otherInst)
+                otherInst->addRef();
+        }
+        void move(Thread&& other) {
+            release();
+            ThreadInst* otherInst = other.instance.load(std::memory_order_acquire);
+            instance.store(otherInst, std::memory_order_release);
+            other.abandon();
         }
     };
 
@@ -8743,7 +8731,7 @@ namespace cjs {
     std::atomic<uint64_t> RunInThread::nextId{ 1 };
 
     template <typename T>
-    size_t CopyVectorData(std::vector<T>& vec, T** ptrPtr) {
+    size_t CopyVectorData(const std::vector<T>& vec, T** ptrPtr) {
         if (ptrPtr == nullptr || vec.empty()) {
             if (ptrPtr != nullptr) {
                 *ptrPtr = nullptr;
@@ -8764,7 +8752,7 @@ namespace cjs {
         *ptrPtr = newData;
         return vec.size();
     }
-    size_t CopyWstringData(std::wstring data, const wchar_t** outPtr) {
+    size_t CopyWstringData(const std::wstring& data, const wchar_t** outPtr) {
         if (outPtr == nullptr) {
             return 0;
         }
@@ -8782,6 +8770,25 @@ namespace cjs {
 
         *outPtr = buffer;
         return len * sizeof(wchar_t);
+    }
+    size_t CopyStringData(const std::string& data, const char** outPtr) {
+        if (outPtr == nullptr) {
+            return 0;
+        }
+
+        size_t len = data.length();
+        size_t bufferSize = len + 1;
+        char* buffer = new char[bufferSize];
+
+        if (len > 0) {
+            strcpy_s(buffer, bufferSize, data.c_str());
+        }
+        else {
+            buffer[0] = '\0';
+        }
+
+        *outPtr = buffer;
+        return len * sizeof(char);
     }
     void FreeHeapData(CJSHeapData data) {
         if (data.tag == 1) {
@@ -10777,13 +10784,14 @@ bytebuffer:
                     return JS_EXCEPTION;
                 }
 
+
+                JSV js_data = GetProperty(ctx, thisVal, { {"internal"}, {"data"} });
+                BYTEBUFFER data = {};
+                ReadJSValueAsArrayBuffer(ctx, js_data, data);
+
+                promise.Resolve(ctx, NewArrayBuffer(ctx, data));
                 std::thread t([=]() {
 
-                    JSV js_data = GetProperty(ctx, thisVal, { {"internal"}, {"data"} });
-                    BYTEBUFFER data = {};
-                    ReadJSValueAsArrayBuffer(ctx, js_data, data);
-
-                    promise.Resolve(ctx, NewArrayBuffer(ctx, data));
 
                     return;
                     });
@@ -20144,14 +20152,14 @@ bytebuffer:
 
             jsmdPtr->timeoutList.lock();
             for (auto it = jsmdPtr->timeoutList.begin(); it != jsmdPtr->timeoutList.end();) {
-                if (it->second.thread.isQuit()) it = jsmdPtr->timeoutList.erase(it);
+                if (it->second.thread.quited()) it = jsmdPtr->timeoutList.erase(it);
                 else ++it;
             }
             jsmdPtr->timeoutList.unlock();
 
             jsmdPtr->threadList.lock();
             for (auto it = jsmdPtr->threadList.begin(); it != jsmdPtr->threadList.end();) {
-                if (it->isQuit()) it = jsmdPtr->threadList.erase(it);
+                if (it->quited()) it = jsmdPtr->threadList.erase(it);
                 else ++it;
             }
             jsmdPtr->threadList.unlock();

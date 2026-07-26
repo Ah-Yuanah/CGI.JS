@@ -2,7 +2,7 @@
 
 #ifndef AY_CJS_CPP
 #define AY_CJS_CPP
-#define AY_CJS_CPP_VW std::wstring(L"1.3.20260711.01")
+#define AY_CJS_CPP_VW std::wstring(L"2.0.20260726.01")
 #define AY_CJS_CPP_VL []() -> std::wstring { \
     std::wstring s(AY_CJS_CPP_VW); \
     s.erase(std::remove(s.begin(), s.end(), L'.'), s.end()); \
@@ -14,6 +14,11 @@
 #include "../include/cjskit.hpp"
 using namespace cjs;
 
+//void debug(std::wstring text = L"命中") {
+//    FileController fc(L"F:/output.txt", L"");
+//    BYTEBUFFER data = ToBinary(text);
+//    fc.write(&data);
+//}
 
 int Main() {
     mode = "repl";
@@ -256,7 +261,8 @@ EndProcess:;
     js = nullptr;
     return EXIT_SUCCESS;
 }
-int FastCgiMain() {
+int FastCgiMain(std::wstring startFilePath = L"") {
+
     mode = "fcgi";
 
     _putenv_s("FCGI_TIMEOUT", std::to_string(timeout).c_str());
@@ -270,36 +276,31 @@ int FastCgiMain() {
 
         bool isSuccess = false;
         std::string fileContent = "";
+        std::wstring scriptPath1 = L"";
+        std::wstring scriptPath2 = startFilePath;
         std::wstring scriptPath = L"";
         {
             const char* cScriptPath = FCGX_GetParam("SCRIPT_FILENAME", request.envp);
             if (cScriptPath == nullptr) goto EndProcessFilePath;
-            scriptPath = stringToWstring(cScriptPath);
-            if (std::filesystem::exists(scriptPath) && std::filesystem::is_regular_file(scriptPath)) {
-                std::ifstream fileStream(scriptPath, std::ios::in | std::ios::binary);
-                if (fileStream.is_open()) {
-                    fileStream.seekg(0, std::ios::end);
-                    const std::streamsize fileSize = fileStream.tellg();
-                    fileStream.seekg(0, std::ios::beg);
-                    if (fileSize > 0) {
-                        fileContent.reserve(static_cast<std::size_t>(fileSize));
-                        fileContent.assign(
-                            std::istreambuf_iterator<char>(fileStream),
-                            std::istreambuf_iterator<char>()
-                        );
-                    }
-                    fileStream.close();
-                    isSuccess = true;
-                }
-                else {
-                    goto EndProcessFilePath;
-                }
-                goto EndProcessFilePath;
-            }
-            else {
-                goto EndProcessFilePath;
-            }
+            scriptPath1 = stringToWstring(cScriptPath);
         }
+        {
+            FileController fc(scriptPath2, L"");
+            BYTEBUFFER data = {};
+            fc.read(0, fc.size(), &data);
+            fileContent = GetTextFromBinarySafely(&data);
+        }
+        if (scriptPath1.empty() && scriptPath2.empty()) {
+            isSuccess = false;
+            goto EndProcessFilePath;
+        }
+        else if (!scriptPath2.empty()) {
+            scriptPath = scriptPath2;
+        }
+        else {
+            scriptPath = scriptPath1;
+        }
+        isSuccess = true;
     EndProcessFilePath:;
         JavaScript* js = nullptr;
         if (isSuccess) {
@@ -330,7 +331,8 @@ int FastCgiMain() {
                 jsm->SetAttribute(ctx, jsm->GetProperty(ctx, global, "system"), "workDirectory", wstringToString(GetFilePathWithoutName(scriptPath)));
                 jsm->SetAttribute(ctx, network_request, "method", network_request_method_string);
                 jsm->SetAttribute(ctx, network_request, "url", GetEnv("REQUEST_URI", request.envp));
-                jsm->SetAttribute(ctx, network_request, "path", GetEnv("SCRIPT_FILENAME", request.envp));
+                jsm->SetAttribute(ctx, network_request, "scriptPath", GetEnv("SCRIPT_FILENAME", request.envp));
+                jsm->SetAttribute(ctx, network_request, "path", wstringToString(scriptPath));
 
                 OBJECT requestHeaderObject = GetObjectFromHeader(stringToWstring(GetRequestHeader(&request)));
                 JSV network_request_header = jsm->NewObject(ctx, requestHeaderObject);
@@ -555,7 +557,6 @@ int FastCgiMain() {
         }
         if (isFlushNamedPipe) FCGX_FFlush(request.out);
         FCGX_Finish_r(&request);
-
         ClearOutput();
     }
 
@@ -681,12 +682,13 @@ ProcessConfigEnd:;
     }
 ProcessExtensionEnd:;
 
+
     isStartByFastCgi = IsStartByFastCgi();
     updateConfig();
 
     int result = 0;
-    if (isStartByFastCgi && commandStartFilePath.empty()){
-        result = FastCgiMain();
+    if (isStartByFastCgi){
+        result = FastCgiMain(commandStartFilePath);
     }
     else if (!commandStartFilePath.empty()) {
         errorOutput = tempOutput;
