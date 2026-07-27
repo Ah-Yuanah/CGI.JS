@@ -5870,6 +5870,21 @@ namespace cjs {
 
         return dirPath;
     }
+    std::wstring FormatHeaderName(std::wstring name) {
+        if (name.empty()) return name;
+        for (auto& ch : name) ch = towlower(ch);
+        bool capitalize = true;
+        for (auto& ch : name) {
+            if (capitalize && iswalpha(ch)) {
+                ch = towupper(ch);
+                capitalize = false;
+            }
+            else if (ch == L'-') {
+                capitalize = true;
+            }
+        }
+        return name;
+    }
 
     template<typename T>
     uint64_t GetPtrAddress(const T* ptr) {
@@ -6968,7 +6983,7 @@ namespace cjs {
                         if (vs != std::wstring::npos && ve != std::wstring::npos)
                             v = v.substr(vs, ve - vs + 1);
 
-                        responseHeaders[k] = v;
+                        responseHeaders[FormatHeaderName(k)] = v;
                     }
                     index++;
                 }
@@ -7066,8 +7081,9 @@ namespace cjs {
             }
         }
 
-        bool setRequestHeader(const std::wstring& headerName, const std::wstring& headerValue) noexcept {
+        bool setRequestHeader(std::wstring headerName, const std::wstring& headerValue) noexcept {
             if (!isOpened()) return false;
+            headerName = FormatHeaderName(headerName);
             if (requestHeaders.count(headerName)) {
                 requestHeaders[headerName] += L", " + headerValue;
             }
@@ -7076,12 +7092,14 @@ namespace cjs {
             }
             return true;
         }
-        bool hasRequestHeader(const std::wstring& headerName) noexcept {
+        bool hasRequestHeader(std::wstring headerName) noexcept {
             if (!isOpened()) return false;
+            headerName = FormatHeaderName(headerName);
             return requestHeaders.count(headerName) > 0;
         }
-        bool deleteRequestHeader(const std::wstring& headerName) noexcept {
+        bool deleteRequestHeader(std::wstring headerName) noexcept {
             if (!isOpened()) return false;
+            headerName = FormatHeaderName(headerName);
             return requestHeaders.count(headerName) && requestHeaders.erase(headerName);
         }
         GMT* getRequestHeadersPtr() noexcept {
@@ -7093,8 +7111,9 @@ namespace cjs {
             return requestHeaders;
         }
 
-        std::wstring getResponseHeader(const std::wstring& headerName) noexcept {
+        std::wstring getResponseHeader(std::wstring headerName) noexcept {
             if (!isResponsed()) return L"";
+            headerName = FormatHeaderName(headerName);
             return responseHeaders.count(headerName) ? responseHeaders[headerName] : L"";
         }
         GMT* getResponseHeadersPtr() noexcept {
@@ -20672,9 +20691,8 @@ bytebuffer:
             std::string headerName;
             bool isHeader = false;
 
-            if (key.compare(0, 5, "HTTP_") == 0) { // 更严谨的前缀匹配
+            if (key.compare(0, 5, "HTTP_") == 0) {
                 headerName = key.substr(5);
-                // 还原头名称格式：下划线转横线，首字母大写，其余小写
                 for (size_t j = 0; j < headerName.size(); ++j) {
                     if (headerName[j] == '_') {
                         headerName[j] = '-';
@@ -20698,7 +20716,7 @@ bytebuffer:
             }
 
             if (isHeader) {
-                completeHeaders += headerName + ": " + value + "\r\n"; // 标准HTTP头换行符
+                completeHeaders += headerName + ": " + value + "\r\n";
             }
         }
 

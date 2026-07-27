@@ -2,7 +2,7 @@
 
 #ifndef AY_CJS_CPP
 #define AY_CJS_CPP
-#define AY_CJS_CPP_VW std::wstring(L"2.0.20260726.01")
+#define AY_CJS_CPP_VW std::wstring(L"2.1.20260727.01")
 #define AY_CJS_CPP_VL []() -> std::wstring { \
     std::wstring s(AY_CJS_CPP_VW); \
     s.erase(std::remove(s.begin(), s.end(), L'.'), s.end()); \
@@ -335,6 +335,9 @@ int FastCgiMain(std::wstring startFilePath = L"") {
                 jsm->SetAttribute(ctx, network_request, "path", wstringToString(scriptPath));
 
                 OBJECT requestHeaderObject = GetObjectFromHeader(stringToWstring(GetRequestHeader(&request)));
+                for (const auto& [key, value] : GetObjectFromHeader(stringToWstring(GetRequestHeader(&request)))) {
+                    requestHeaderObject[FormatHeaderName(key)] = value;
+                }
                 JSV network_request_header = jsm->NewObject(ctx, requestHeaderObject);
                 jsm->SetAttribute(ctx, network_request, "header", network_request_header);
                 JSV network_request_advhHeader = jsm->NewObject(ctx);
@@ -370,7 +373,6 @@ int FastCgiMain(std::wstring startFilePath = L"") {
                     {"cookie"},
                     });
                 jsm->SetAttribute(ctx, document_cookie, "cookie", GetEnv("HTTP_COOKIE", request.envp));
-
 
                 jsm->AppendMethod(ctx, network_response, "setResponseCode", [](JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues)->JSValue {
                     JSV js_code = (argumentCount >= 1) ? JSV(ctx, argumentValues[0]).cget(1).cset(1) : JavaScriptMethod::NewInt64(ctx, 200);
@@ -485,8 +487,8 @@ int FastCgiMain(std::wstring startFilePath = L"") {
                     };
                     OBJECT headerTemp = {};
                     jsm->ReadJSValueAsObject(ctx, response_header, headerTemp);
-                    for (const auto& pair : headerTemp) {
-                        headerObject[pair.first] = pair.second;
+                    for (const auto& [key, value] : headerTemp) {
+                        headerObject[FormatHeaderName(key)] = value;
                     }
 
                     if (!GetAcceptAllowList(wstringToString(headerObject[L"Allow"].get<std::wstring>())).count(network_request_method_string)) {
@@ -500,8 +502,7 @@ int FastCgiMain(std::wstring startFilePath = L"") {
                     uint64_t uint64Temp = 0;
                     bool boolTemp = false;
                     std::string stringTemp = "";
-                    if (jsm->ReadJSValueAsUint8Array(ctx, response_body, bodyBinary) || jsm->ReadJSValueAsUint16Array(ctx, response_body, bodyBinary) || jsm->ReadJSValueAsUint32Array(ctx, response_body, bodyBinary)
-                        || jsm->ReadJSValueAsInt8Array(ctx, response_body, bodyBinary) || jsm->ReadJSValueAsInt16Array(ctx, response_body, bodyBinary) || jsm->ReadJSValueAsInt32Array(ctx, response_body, bodyBinary)) {
+                    if (jsm->ReadJSValueAsArrayBufferView(ctx, response_body, bodyBinary)) {
                         headerObject[L"Content-Type"] = OBJECTStruct{ static_cast<std::wstring>(L"application/octet-stream") };
                         headerObject[L"Content-Length"] = OBJECTStruct{ std::to_wstring(bodyBinary.size()) };
                     }
@@ -527,7 +528,6 @@ int FastCgiMain(std::wstring startFilePath = L"") {
                     else {
                         bodyBinary = ToBinary(L"[object " + stringToWstring(GetPrototypeName(ctx, bodyTemp)) + L"]");
                     }
-
                 }
                 std::string responseHeader = wstringToString(GetResponseHeader(headerObject));
                 int responseCode = GetStatusCode(responseHeader);
