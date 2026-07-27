@@ -2,7 +2,7 @@
 
 #ifndef AY_CJS_CPP
 #define AY_CJS_CPP
-#define AY_CJS_CPP_VW std::wstring(L"2.1.20260727.01")
+#define AY_CJS_CPP_VW std::wstring(L"2.2.20260727.01")
 #define AY_CJS_CPP_VL []() -> std::wstring { \
     std::wstring s(AY_CJS_CPP_VW); \
     s.erase(std::remove(s.begin(), s.end(), L'.'), s.end()); \
@@ -20,14 +20,11 @@ using namespace cjs;
 //    fc.write(&data);
 //}
 
-int Main() {
+int Main(const OpaqueData& data) {
     mode = "repl";
 
     int consoleResult = CreateConsole(L"CGI.JS - " + cplatform + AY_CJS_CPP_VW + L"");
-    if (consoleResult == -1) {
-        return EXIT_SUCCESS;
-    }
-    else if (consoleResult == 0) {
+    if (consoleResult == 0) {
         return EXIT_FAILURE;
     }
 
@@ -73,7 +70,7 @@ int Main() {
         std::wstring inputData = CreateInput();
         if (IsCodeEmpty(inputData)) continue;
 
-        JSINFO result = js->eval(inputData);
+        JSINFO result = js->eval(inputData, L"typein", false, data);
         if (!result.isValid) continue;
         if (result.isSuccess) {
             if (!isShowReturnValue) continue;
@@ -97,7 +94,7 @@ int Main() {
     js = nullptr;
     return EXIT_SUCCESS;
 }
-int FileMain() {
+int FileMain(const OpaqueData& data) {
     mode = "file";
 
     if (isShowConsole) {
@@ -162,7 +159,7 @@ int FileMain() {
 
         JavaScriptMethod::SetAttribute(js->getContextThis(), JavaScriptMethod::GetProperty(js->getContextThis(), JavaScriptMethod::NewGlobalObject(js->getContextThis()), "system"), "workDirectory", wstringToString(GetFilePathWithoutName(commandStartFilePath)));
 
-        JSINFO result = js->eval(code, commandStartFilePath, isTotalOutput);
+        JSINFO result = js->eval(code, commandStartFilePath, isTotalOutput, data);
 
         if (!isTotalOutput) CreateOutput(L"\n");
 
@@ -261,7 +258,7 @@ EndProcess:;
     js = nullptr;
     return EXIT_SUCCESS;
 }
-int FastCgiMain(std::wstring startFilePath = L"") {
+int FastCgiMain(const OpaqueData& data, std::wstring startFilePath = L"") {
 
     mode = "fcgi";
 
@@ -391,7 +388,7 @@ int FastCgiMain(std::wstring startFilePath = L"") {
 
             }
 
-            JSINFO ji = js->eval(stringToWstring(fileContent), GetFileNameFromPath(scriptPath));
+            JSINFO ji = js->eval(stringToWstring(fileContent), GetFileNameFromPath(scriptPath), false, data);
             if (!ji.isValid) {
                 goto ErrorProcess;
             }
@@ -584,14 +581,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
     bool isDisabledExtension = false;
     bool isKeepWTMode = false;
     
-    if (!commandArgList.empty()) {
-        for (auto& [arg, value] : commandArgList) {
-            if (!supportArgList.count(arg)) {
-                tempOutput += L"Warning: Invalid command line parameter '" + arg + L"'\n";
-            }
-        }
-    }
-    
     if (commandArgList.count(L"config")) {
         if (commandArgList[L"config"] == L"disabled") {
             isDisabledConfig = true;
@@ -686,17 +675,29 @@ ProcessExtensionEnd:;
     isStartByFastCgi = IsStartByFastCgi();
     updateConfig();
 
+    OpaqueData data = {};
+    data.isValid = true;
+    data.cmdLine = GetCmdLine();
+    OBJECT cmdLineArgs = {};
+    for (const auto& [name, value] : commandArgList) {
+        cmdLineArgs[name] = value;
+    }
+    data.cmdLineArgs = std::move(cmdLineArgs);
+    data.scriptPath = commandStartFilePath;
+
+    //tempOutput = data.cmdLine;
+
     int result = 0;
     if (isStartByFastCgi){
-        result = FastCgiMain(commandStartFilePath);
+        result = FastCgiMain(data, commandStartFilePath);
     }
     else if (!commandStartFilePath.empty()) {
         errorOutput = tempOutput;
-        result = FileMain();
+        result = FileMain(data);
     }
     else {
         errorOutput = tempOutput;
-        result = Main();
+        result = Main(data);
     }
 
     unInit();

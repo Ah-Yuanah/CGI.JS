@@ -3208,10 +3208,6 @@ namespace cjs {
         return colorMap;
     }
 
-    std::wstring GetCmdLine() {
-        return GetCommandLineW();
-    }
-
     GMT GetCommandArgList() {
         GMT arg_map;
         int argc = 0;
@@ -3304,6 +3300,15 @@ namespace cjs {
 
         BOOL bAttachSuccess = AttachConsole(ATTACH_PARENT_PROCESS);
         if (bAttachSuccess) {
+
+            wchar_t* szCmdLine = GetCommandLineW();
+            if (wcsstr(szCmdLine, L"--restarted") == nullptr) {
+                std::wstring szCmd = L"cmd.exe /c \"";
+                szCmd += apppath(-1);
+                szCmd += L"\" --restarted";
+                _wsystem(szCmd.c_str());
+                return -1;
+            }
 
             SetConsoleTitleW(title.c_str());
             FILE* fp = nullptr;
@@ -3451,6 +3456,114 @@ namespace cjs {
         return true;
     }
 
+    std::wstring CreateInput() {
+        if (!isConsoleEnv) return L"";
+        HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+        HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD dwOriginalInMode = 0;
+        GetConsoleMode(hStdIn, &dwOriginalInMode);
+        SetConsoleMode(hStdIn, ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT);
+        std::wstring totalInput;
+        const DWORD BUFFER_SIZE = 1024;
+
+        while (true) {
+            if (isQuit.load(std::memory_order_acquire)) {
+                break;
+            }
+
+            std::wstring currentLine;
+            WCHAR buffer[BUFFER_SIZE] = { 0 };
+            DWORD dwRead = 0;
+
+            DWORD dwAvail = 0;
+            if (!GetNumberOfConsoleInputEvents(hStdIn, &dwAvail)) {
+                break;
+            }
+            if (dwAvail == 0) {
+                continue; // 无输入直接循环，无Sleep，无延迟
+            }
+
+            ZeroMemory(buffer, sizeof(buffer));
+            if (!ReadConsoleW(hStdIn, buffer, BUFFER_SIZE - 1, &dwRead, nullptr)) {
+                break;
+            }
+            currentLine.append(buffer, dwRead);
+
+            if (isQuit.load(std::memory_order_acquire)) {
+                break;
+            }
+
+            if (currentLine.find(L'\r') != std::wstring::npos || currentLine.find(L'\n') != std::wstring::npos) {
+                if (((GetKeyState(VK_SHIFT) & 0x8000) == 0)) {
+                    size_t lastPos = currentLine.find_last_of(L"\r\n");
+                    while (lastPos != std::wstring::npos) {
+                        currentLine.erase(lastPos, 1);
+                        lastPos = currentLine.find_last_of(L"\r\n");
+                    }
+                    totalInput += currentLine;
+                    break;
+                }
+                else {
+                    totalInput += currentLine;
+                    continue;
+                }
+            }
+            totalInput += currentLine;
+        }
+
+        SetConsoleMode(hStdIn, dwOriginalInMode);
+
+        return isQuit.load(std::memory_order_acquire) ? L"" : totalInput;
+    }
+
+    bool CancelInput() {
+        // 1. 获取标准输入句柄，句柄无效直接返回失败
+        HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+        if (hStdIn == INVALID_HANDLE_VALUE) {
+            return false;
+        }
+
+        // 2. 保存原始控制台输入模式，避免污染环境
+        DWORD dwOriginalInMode = 0;
+        if (!GetConsoleMode(hStdIn, &dwOriginalInMode)) {
+            return false;
+        }
+
+        // 3. 临时设置基础输入模式，确保注入的回车事件能被识别
+        if (!SetConsoleMode(hStdIn, ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT)) {
+            return false;
+        }
+
+        // 4. 注入回车键事件（按下+松开），触发CreateInput的换行逻辑以结束输入
+        INPUT_RECORD inputRecords[2] = { 0 };
+        DWORD dwWritten = 0;
+
+        // 按下回车键
+        inputRecords[0].EventType = KEY_EVENT;
+        inputRecords[0].Event.KeyEvent.bKeyDown = TRUE;
+        inputRecords[0].Event.KeyEvent.wVirtualKeyCode = VK_RETURN;
+        inputRecords[0].Event.KeyEvent.wVirtualScanCode = MapVirtualKeyW(VK_RETURN, MAPVK_VK_TO_VSC);
+        inputRecords[0].Event.KeyEvent.uChar.UnicodeChar = L'\r';
+        inputRecords[0].Event.KeyEvent.dwControlKeyState = 0;
+
+        // 松开回车键
+        inputRecords[1].EventType = KEY_EVENT;
+        inputRecords[1].Event.KeyEvent.bKeyDown = FALSE;
+        inputRecords[1].Event.KeyEvent.wVirtualKeyCode = VK_RETURN;
+        inputRecords[1].Event.KeyEvent.wVirtualScanCode = MapVirtualKeyW(VK_RETURN, MAPVK_VK_TO_VSC);
+        inputRecords[1].Event.KeyEvent.uChar.UnicodeChar = L'\r';
+        inputRecords[1].Event.KeyEvent.dwControlKeyState = 0;
+
+        // 写入事件到控制台输入流（核心：触发CreateInput退出）
+        BOOL bWriteSuccess = WriteConsoleInputW(hStdIn, inputRecords, 2, &dwWritten);
+
+        // 5. 必做：恢复控制台原始输入模式，避免影响后续操作
+        SetConsoleMode(hStdIn, dwOriginalInMode);
+
+        // 6. 返回操作结果：事件写入成功则返回true，否则false
+        return (bWriteSuccess && dwWritten == 2);
+    }
+
     struct RGBColor {
         int r = 0, g = 0, b = 0;
     };
@@ -3458,20 +3571,27 @@ namespace cjs {
     WORD ParseColor(const std::wstring& fgColor = L"#cccccc", const std::wstring& bgColor = L"#0c0c0c") {
         auto hex2rgb = [](const std::wstring& hex, bool isBackground = false) -> RGBColor {
             RGBColor rgb;
+            // 非法格式直接返回默认值
             if (hex.size() != 7 || hex[0] != L'#') {
                 return isBackground ? RGBColor{ 12, 12, 12 } : RGBColor{ 204, 204, 204 };
             }
 
             wchar_t* endPtr = nullptr;
+            // 使用wcstoul（无符号）避免负数解析问题，增加空指针校验
             unsigned long rUL = std::wcstoul(hex.substr(1, 2).c_str(), &endPtr, 16);
             if (endPtr == hex.substr(1, 2).c_str()) return isBackground ? RGBColor{ 12,12,12 } : RGBColor{ 204,204,204 };
+
             unsigned long gUL = std::wcstoul(hex.substr(3, 2).c_str(), &endPtr, 16);
             if (endPtr == hex.substr(3, 2).c_str()) return isBackground ? RGBColor{ 12,12,12 } : RGBColor{ 204,204,204 };
+
             unsigned long bUL = std::wcstoul(hex.substr(5, 2).c_str(), &endPtr, 16);
             if (endPtr == hex.substr(5, 2).c_str()) return isBackground ? RGBColor{ 12,12,12 } : RGBColor{ 204,204,204 };
+
+            // 强制转换为0-255范围（避免溢出）
             rgb.r = static_cast<int>(rUL & 0xFF);
             rgb.g = static_cast<int>(gUL & 0xFF);
             rgb.b = static_cast<int>(bUL & 0xFF);
+
             return rgb;
             };
 
@@ -3669,90 +3789,6 @@ namespace cjs {
             return true;
         }
         return system("cls") == 0;
-    }
-
-    std::wstring CreateInput(std::wstring defaultValue = L"", bool isHidden = false) {
-        if (!isConsoleEnv) return L"";
-        HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
-        HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-        DWORD dwOriginalInMode = 0;
-        GetConsoleMode(hStdIn, &dwOriginalInMode);
-
-        DWORD dwNewMode = ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT;
-        if (!isHidden) { dwNewMode |= ENABLE_ECHO_INPUT; }
-        SetConsoleMode(hStdIn, dwNewMode);
-
-        std::wstring totalInput;
-        const DWORD BUFFER_SIZE = 1024;
-
-        while (true) {
-            if (isQuit.load(std::memory_order_acquire)) { break; }
-
-            std::wstring currentLine;
-            WCHAR buffer[BUFFER_SIZE] = { 0 };
-            DWORD dwRead = 0;
-
-            DWORD dwAvail = 0;
-            if (!GetNumberOfConsoleInputEvents(hStdIn, &dwAvail)) { break; }
-            if (dwAvail == 0) { continue; }
-
-            ZeroMemory(buffer, sizeof(buffer));
-            if (!ReadConsoleW(hStdIn, buffer, BUFFER_SIZE - 1, &dwRead, nullptr)) { break; }
-            currentLine.append(buffer, dwRead);
-
-            if (isQuit.load(std::memory_order_acquire)) { break; }
-
-            if (currentLine.find(L'\r') != std::wstring::npos || currentLine.find(L'\n') != std::wstring::npos) {
-                if (((GetKeyState(VK_SHIFT) & 0x8000) == 0)) {
-                    size_t lastPos = currentLine.find_last_of(L"\r\n");
-                    while (lastPos != std::wstring::npos) { currentLine.erase(lastPos, 1); lastPos = currentLine.find_last_of(L"\r\n"); }
-                    totalInput += currentLine;
-                    break;
-                }
-                else {
-                    totalInput += currentLine;
-                    continue;
-                }
-            }
-            totalInput += currentLine;
-        }
-
-        SetConsoleMode(hStdIn, dwOriginalInMode);
-
-        if (isQuit.load(std::memory_order_acquire)) { return L""; }
-        if (totalInput.empty()) { totalInput = defaultValue; }
-        return totalInput;
-    }
-
-    bool CancelInput() {
-        HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
-        if (hStdIn == INVALID_HANDLE_VALUE) {
-            return false;
-        }
-        DWORD dwOriginalInMode = 0;
-        if (!GetConsoleMode(hStdIn, &dwOriginalInMode)) {
-            return false;
-        }
-        if (!SetConsoleMode(hStdIn, ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT)) {
-            return false;
-        }
-        INPUT_RECORD inputRecords[2] = { 0 };
-        DWORD dwWritten = 0;
-        inputRecords[0].EventType = KEY_EVENT;
-        inputRecords[0].Event.KeyEvent.bKeyDown = TRUE;
-        inputRecords[0].Event.KeyEvent.wVirtualKeyCode = VK_RETURN;
-        inputRecords[0].Event.KeyEvent.wVirtualScanCode = MapVirtualKeyW(VK_RETURN, MAPVK_VK_TO_VSC);
-        inputRecords[0].Event.KeyEvent.uChar.UnicodeChar = L'\r';
-        inputRecords[0].Event.KeyEvent.dwControlKeyState = 0;
-        inputRecords[1].EventType = KEY_EVENT;
-        inputRecords[1].Event.KeyEvent.bKeyDown = FALSE;
-        inputRecords[1].Event.KeyEvent.wVirtualKeyCode = VK_RETURN;
-        inputRecords[1].Event.KeyEvent.wVirtualScanCode = MapVirtualKeyW(VK_RETURN, MAPVK_VK_TO_VSC);
-        inputRecords[1].Event.KeyEvent.uChar.UnicodeChar = L'\r';
-        inputRecords[1].Event.KeyEvent.dwControlKeyState = 0;
-        BOOL bWriteSuccess = WriteConsoleInputW(hStdIn, inputRecords, 2, &dwWritten);
-        SetConsoleMode(hStdIn, dwOriginalInMode);
-        return (bWriteSuccess && dwWritten == 2);
     }
 
     void BackOutput(ULL size, ULL offset = 0) {
@@ -8781,12 +8817,6 @@ namespace cjs {
             delete[]((CJSString*)data.data);
         }
     }
-    struct OpaqueData {
-        bool isValid = false;
-        std::wstring cmdLine = L"";
-        OBJECT cmdLineArgs = {};
-        std::wstring scriptPath = L"";
-    };
 
     class JavaScriptMethod {
     public:
@@ -8836,13 +8866,11 @@ namespace cjs {
             SetSymbolName(ctx, system, "System");
             SetAttribute(ctx, system, "platform", platform);
             SetAttribute(ctx, system, "version", wstringToString(AY_CJS_CPP_VW));
-            AppendMethod(ctx, system, "help", system_help);
             AppendMethod(ctx, system, "saveConfig", system_saveConfig);
             AppendMethod(ctx, system, "exit", system_exit);
 
             JSV console = NewObject(ctx, global, "console");
             SetSymbolName(ctx, console, "Console");
-            AppendMethod(ctx, console, "log", console_log);
             AppendMethod(ctx, console, "log", console_log);
             AppendMethod(ctx, console, "clear", console_clear);
 
@@ -8913,7 +8941,6 @@ namespace cjs {
                     AppendMethod(ctx, console, "show", console_show);
                     AppendMethod(ctx, console, "kill", console_kill);
                     AppendMethod(ctx, console, "restore", console_restore);
-                    AppendMethod(ctx, console, "input", console_input);
                     successCount++;
                 }
 
@@ -9095,7 +9122,72 @@ namespace cjs {
                 jsmd.isAutoLoadModules = false;
             }
 
-            const static std::wstring code = LR"()";
+            const static std::wstring code = LR"(
+system.help = (page)=>{
+    const totalPage = 1;
+    if (page == undefined) page = 1;
+    if (page == 1) {
+        console.log(`
+CGI.JS自定义API使用帮助文档(第 ${page} 页 / 共 ${totalPage} 页)(属性说明顺序: 说明(子属性)，函数说明顺序：功能；参数；返回值；行为):
+注意: 本API文档中省略并简写了对行为"传入参数类型或数量的不匹配则抛出类型错误(如果函数不额外抛出错误，则简写为'不抛出错误')\"的描述，因为此行为针对任意有参数函数都会触发。
+window:
+    include(...moduleName: string):void: 加载模块；(...moduleName: string)模块名称，即全局对象中或其他对象中的属性名称加特定前缀，内置模块写法为'cjs:[模块名称]'，关键字直接写'all'，'extension'；无返回值；不抛出错误。
+    await(promise: Promise):void: 保持阻塞等待直到Promise的状态被更改；(promise: Promise)要等待的Promise对象；在Promise被解决时会返回其结果；行为与浏览器中的await关键字一致，若Promise被拒绝则会抛出错误并将Promise拒绝的结果作为错误原因，注意：如果Promise不被解决或拒绝，则此函数会永远保持阻塞状态。
+    eval(code):any: 执行代码字符串；(code)要执行的代码；返回最后一次执行成功代码的返回值；与浏览器一致，传入非字符串类型原样返回，代码存在错误抛出。
+    using(namespace: object[, where: object]):boolean: 将指定对象的所有属性复写到指定位置；(namespace: object)要被复写的对象，(where: object)要复写的目标对象，默认为全局对象；返回操作状态。
+    wait(milliseconds: number):void: 阻塞等待指定的时间(毫秒)，由于受到系统时钟精度的影响，实际等待实际可能存在10毫秒以内的波动；(milliseconds: number)指定的时间，仅可为正整数或0；无返回值；数据不正确抛出类型错误。
+    this_close():void: 此方法仅在子上下文的全局对象即通过script.execute(...)函数创建并返回的全局对象中可用，关闭当前上下文并该上下文的清空全局对象；无参数；无返回值；重复关闭抛出类型错误。
+system: 
+    help([page: number]):void: 显示当前界面；([page])可选页码，默认为1；无返回值；传入错误页码无输出，不抛出错误。
+    exit():void: 结束当前上下文，在交互式模式下主上下文被结束后会退出程序；无参数；无返回值；在底层出错时抛出内部错误。
+    updateConfig(config: object):void: 更新底层配置；(config: object)配置对象；无返回值；不抛出错误。
+    saveConfig():boolean: 保存底层配置到文件；无参数；返回操作状态；不抛出错误。
+    cwd():string: 返回当前执行脚本的工作目录；无参数；成功返回目录(以'/'为分隔符，末尾带'/')，失败返回可执行文件所在目录；不抛出错误。
+    ecwd():string: 返回当前可执行文件所在目录；无参数；返回目录(以'/'为分隔符，末尾带'/')；不抛出错误。
+    execute(cmd: string):object: 在新的命令提示符中执行一段命令；(cmd: string)要执行的cmd命令；返回操作对象，包含(isSuccess: boolean)操作状态，(exitCode: uint64)退出码，(output: string)所有输出结果。
+    config:object: 配置对象。
+script:
+    include(...path: string[]):void: 引入一个或多个本地js文件，支持绝对路径与相对路径，正斜杠分隔符与反斜杠分隔符，相对路径基于脚本执行目录(在交互式模式下为可执行文件所在目录)(下同)；(...path: string[])剩余路径，允许一次传入多个本地路径；无返回值；在文件任意文件不存在或任意文件读取失败时抛出内部错误，在任意引入文件存在错误时中断后续引入并抛出默认错误。
+    execute([path: string]):object: 引入一个本地js文件，支持类型同上include(...)函数；([path: string])可选路径；返回新上下文的全局对象；在未传参时会直接返回新上下文的全局对象，在上下文创建失败或在传参且目标文件不存在或读取失败时抛出内部错误，在引入的文件存在错误时中断引入并抛出默认错误，返回值为未初始化。
+console:
+    log([...data]):void: 在控制台输出任意类型的数据；([...data])可选的剩余数据，允许一次输出多个数据，输出时将使用','分隔；无返回值；和浏览器一致，不抛出错误。
+    pause():void: 仅在控制台交互式模式下生效，暂停控制台输入流，注意：操作有1ms延迟，仅同步生效；无参数；无返回值；重复暂停不抛出错误。
+    resume():void: 仅在控制台交互式模式下生效，恢复控制台输入流，注意：操作有1ms延迟，仅同步生效；无参数；无返回值；重复继续不抛出错误。
+    hide():void: 隐藏控制台，注意：部分操作系统上会被处理为最小化；无参数；无返回值；不抛出错误。
+    show():void: 恢复已隐藏控制台；无参数；无返回值；不抛出错误。
+    kill():void: 关闭已有的控制台，这不会导致程序退出，注意：仅在文件执行模式下可用；无参数；无返回值；不抛出错误。
+    restore([title: string]):void: 恢复已关闭的控制台，这不会导致程序有多个控制台，注意：仅在文件执行模式下可用；([title: string])可选控制台窗口标题；无返回值；不抛出错误。
+filesystem:
+    open(path: string[, mode: string]):object: 打开一个文件；(path: string)路径，在读模式下文件必须存在，([mode: string])模式；返回文件操作对象；行为与Python3+一致。
+    exists(path: string):boolean: 检查一个文件是否存在；(path: string)路径；返回存在状况；不抛出错误。
+    count(path: string):uint64: 返回一个目录下所有文件、文件夹的数量(不包括本身)；(path: string)路径；返回数量；在路径不为目录或不存在时抛出类型错误。
+    remove(path: string):uint64: 删除一个文件或文件夹；(path: string)路径；返回删除数量(如果删除文件夹，则还包括文件夹本身以及所有子文件或文件夹)；文件或文件夹不存在返回类型错误。
+crypto: 标准Web Crypto API。
+bytebuffer:
+    readAsJson(data: Uint8Array):Promise<object>: 异步将二进制字节数据解析为JSON对象；(data: Uint8Array)要解析的二进制字节数据；返回Promise对象，解决时返回解析后的JSON对象，拒绝时返回语法错误；解析JSON失败时抛出语法错误，参数类型不匹配抛出类型错误。
+    readAsFormData(data: Uint8Array):Promise<FormData>: 异步将二进制字节数据转换为FormData对象；(data: Uint8Array)要转换的二进制字节数据；返回Promise对象，解决时返回FormData对象，拒绝时返回对应错误；创建FormData失败时抛出内部错误，参数类型不匹配抛出类型错误。
+    readAsString(data: Uint8Array):Promise<string>: 异步将二进制字节数据转换为字符串；(data: Uint8Array)要转换的二进制字节数据；返回Promise对象，解决时返回转换后的字符串；参数类型不匹配抛出类型错误，不额外抛出错误。
+    decodeBase91(data: string[, isUrlEncoding: boolean]):Promise<Uint8Array>: 异步将Base91编码字符串解码为二进制字节数据；(data: string)Base91编码字符串，([isUrlEncoding: boolean])是否为URL安全编码，默认为false；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，第二个参数非布尔值抛出类型错误。
+    decodeBase85(data: string):Promise<Uint8Array>: 异步将Base85编码字符串解码为二进制字节数据；(data: string)Base85编码字符串；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，参数类型不匹配抛出类型错误。
+    decodeBase64(data: string[, isUrlEncoding: boolean]):Promise<Uint8Array>: 异步将Base64编码字符串解码为二进制字节数据；(data: string)Base64编码字符串，([isUrlEncoding: boolean])是否为URL安全编码，默认为false；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，第二个参数非布尔值抛出类型错误。
+    decodeBase62(data: string):Promise<Uint8Array>: 异步将Base62编码字符串解码为二进制字节数据；(data: string)Base62编码字符串；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，参数类型不匹配抛出类型错误。
+    decodeBase58(data: string):Promise<Uint8Array>: 异步将Base58编码字符串解码为二进制字节数据；(data: string)Base58编码字符串；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，参数类型不匹配抛出类型错误。
+    decodeBase32(data: string):Promise<Uint8Array>: 异步将Base32编码字符串解码为二进制字节数据；(data: string)Base32编码字符串；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，参数类型不匹配抛出类型错误。
+    decodeBase16(data: string):Promise<Uint8Array>: 异步将Base16编码字符串解码为二进制字节数据；(data: string)Base16编码字符串；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，参数类型不匹配抛出类型错误。
+    encodeBase91(data: Uint8Array[, isUrlEncoding: boolean]):Promise<string>: 异步将二进制字节数据编码为Base91字符串；(data: Uint8Array)要编码的二进制字节数据，([isUrlEncoding: boolean])是否使用URL安全编码，默认为false；返回Promise对象，解决时返回Base91编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，第二个参数非布尔值抛出类型错误。
+    encodeBase85(data: Uint8Array):Promise<string>: 异步将二进制字节数据编码为Base85字符串；(data: Uint8Array)要编码的二进制字节数据；返回Promise对象，解决时返回Base85编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，参数类型不匹配抛出类型错误。
+    encodeBase64(data: Uint8Array[, isUrlEncoding: boolean]):Promise<string>: 异步将二进制字节数据编码为Base64字符串；(data: Uint8Array)要编码的二进制字节数据，([isUrlEncoding: boolean])是否使用URL安全编码，默认为false；返回Promise对象，解决时返回Base64编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，第二个参数非布尔值抛出类型错误。
+    encodeBase62(data: Uint8Array):Promise<string>: 异步将二进制字节数据编码为Base62字符串；(data: Uint8Array)要编码的二进制字节数据；返回Promise对象，解决时返回Base62编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，参数类型不匹配抛出类型错误。
+    encodeBase58(data: Uint8Array):Promise<string>: 异步将二进制字节数据编码为Base58字符串；(data: Uint8Array)要编码的二进制字节数据；返回Promise对象，解决时返回Base58编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，参数类型不匹配抛出类型错误。
+    encodeBase32(data: Uint8Array):Promise<string>: 异步将二进制字节数据编码为Base32字符串；(data: Uint8Array)要编码的二进制字节数据；返回Promise对象，解决时返回Base32编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，参数类型不匹配抛出类型错误。
+    encodeBase16(data: Uint8Array):Promise<string>: 异步将二进制字节数据编码为Base16字符串；(data: Uint8Array)要编码的二进制字节数据；返回Promise对象，解决时返回Base16编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，参数类型不匹配抛出类型错误。
+    toBinary(data: any):Promise<Uint8Array>: 异步将任意支持类型的数据转换为Uint8Array二进制字节数据；(data: any)要转换的数据；返回Promise对象，解决时返回Uint8Array类型二进制数据；参数类型不支持时抛出类型错误，不额外抛出错误。
+    toString(data: Uint8Array):Promise<string>: 异步将二进制字节数据转换为字符串；(data: Uint8Array)要转换的二进制字节数据；返回Promise对象，解决时返回转换后的字符串；参数类型不匹配抛出类型错误，不额外抛出错误。
+ `);
+    }
+};
+			)";
+
             EvalInstance(jsmd.js, code, L"buildIn");
 
         }
@@ -11765,77 +11857,6 @@ namespace cjs {
 
             JS_Throw(ctx, JS_NewInternalError(ctx, "[native code] Quit the context"));
             return JS_EXCEPTION;
-        }
-        static JSValue system_help(JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) {
-            constexpr uint64_t totalPage = 1;
-            uint64_t page = 1;
-            if (argumentCount > 0) {
-                JSV js_page = JSV(ctx, &argumentValues[0]).cset(1).cget(1);
-                ReadJSValueAsUint64(ctx, js_page, page);
-            }
-            std::string help = "";
-            if (page == 1) {
-                help = R"(
-CGI.JS内置API使用帮助文档(v1.0.20260727.01)(第 )" + std::to_string(page) + R"( 页 / 共 )" + std::to_string(totalPage) + R"( 页)(属性说明顺序: 说明(子属性)，函数说明顺序：功能；参数；返回值；行为):
-注意: 本API文档中省略并简写了对行为"传入参数类型或数量的不匹配则抛出类型错误(如果函数不额外抛出错误，则简写为'不抛出错误') "的描述，因为此行为针对任意有参数函数都会触发。
-window:
-    include(...moduleName: string):void: 加载模块；(...moduleName: string)模块名称，即全局对象中或其他对象中的属性名称加特定前缀，内置模块写法为'cjs:[模块名称]'，关键字直接写'all'，'extension'；无返回值；不抛出错误。
-    await(promise: Promise):void: 保持阻塞等待直到Promise的状态被更改；(promise: Promise)要等待的Promise对象；在Promise被解决时会返回其结果；行为与浏览器中的await关键字一致，若Promise被拒绝则会抛出错误并将Promise拒绝的结果作为错误原因，注意：如果Promise不被解决或拒绝，则此函数会永远保持阻塞状态。
-    eval(code):any: 执行代码字符串；(code)要执行的代码；返回最后一次执行成功代码的返回值；与浏览器一致，传入非字符串类型原样返回，代码存在错误抛出。
-    using(namespace: object[, where: object]):boolean: 将指定对象的所有属性复写到指定位置；(namespace: object)要被复写的对象，(where: object)要复写的目标对象，默认为全局对象；返回操作状态。
-    wait(milliseconds: number):void: 阻塞等待指定的时间(毫秒)，由于受到系统时钟精度的影响，实际等待实际可能存在10毫秒以内的波动；(milliseconds: number)指定的时间，仅可为正整数或0；无返回值；数据不正确抛出类型错误。
-    this_close():void: 此方法仅在子上下文的全局对象即通过script.execute(...)函数创建并返回的全局对象中可用，关闭当前上下文并该上下文的清空全局对象；无参数；无返回值；重复关闭抛出类型错误。
-system: 
-    help([page: number]):void: 显示当前界面；([page])可选页码，默认为1；无返回值；传入错误页码无输出，不抛出错误。
-    exit():void: 结束当前上下文，在交互式模式下主上下文被结束后会退出程序；无参数；无返回值；在底层出错时抛出内部错误。
-    updateConfig(config: object):void: 更新底层配置；(config: object)配置对象；无返回值；不抛出错误。
-    saveConfig():boolean: 保存底层配置到文件；无参数；返回操作状态；不抛出错误。
-    cwd():string: 返回当前执行脚本的工作目录；无参数；成功返回目录(以'/'为分隔符，末尾带'/')，失败返回可执行文件所在目录；不抛出错误。
-    ecwd():string: 返回当前可执行文件所在目录；无参数；返回目录(以'/'为分隔符，末尾带'/')；不抛出错误。
-    execute(cmd: string):object: 在新的命令提示符中执行一段命令；(cmd: string)要执行的cmd命令；返回操作对象，包含(isSuccess: boolean)操作状态，(exitCode: uint64)退出码，(output: string)所有输出结果。
-    config:object: 配置对象。
-    config:object: 配置对象。
-script:
-    include(...path: string[]):void: 引入一个或多个本地js文件，支持绝对路径与相对路径，正斜杠分隔符与反斜杠分隔符，相对路径基于脚本执行目录(在交互式模式下为可执行文件所在目录)(下同)；(...path: string[])剩余路径，允许一次传入多个本地路径；无返回值；在文件任意文件不存在或任意文件读取失败时抛出内部错误，在任意引入文件存在错误时中断后续引入并抛出默认错误。
-    execute([path: string]):object: 引入一个本地js文件，支持类型同上include(...)函数；([path: string])可选路径；返回新上下文的全局对象；在未传参时会直接返回新上下文的全局对象，在上下文创建失败或在传参且目标文件不存在或读取失败时抛出内部错误，在引入的文件存在错误时中断引入并抛出默认错误，返回值为未初始化。
-console:
-    log([...data]):void: 在控制台输出任意类型的数据；([...data])可选的剩余数据，允许一次输出多个数据，输出时将使用','分隔；无返回值；和浏览器一致，不抛出错误。
-    pause():void: 仅在控制台交互式模式下生效，暂停控制台输入流，注意：操作有1ms延迟，仅同步生效；无参数；无返回值；重复暂停不抛出错误。
-    resume():void: 仅在控制台交互式模式下生效，恢复控制台输入流，注意：操作有1ms延迟，仅同步生效；无参数；无返回值；重复继续不抛出错误。
-    hide():void: 隐藏控制台，注意：部分操作系统上会被处理为最小化；无参数；无返回值；不抛出错误。
-    show():void: 恢复已隐藏控制台；无参数；无返回值；不抛出错误。
-    kill():void: 关闭已有的控制台，这不会导致程序退出，注意：仅在文件执行模式下可用；无参数；无返回值；不抛出错误。
-    restore([title: string]):void: 恢复已关闭的控制台，这不会导致程序有多个控制台，注意：仅在文件执行模式下可用；([title: string])可选控制台窗口标题；无返回值；不抛出错误。
-    input([forwarder: string, defaultValue: string, isHideInputValue: boolean]):void: 要求输入内容，此操作将同步阻塞执行，注意：仅在控制台或文件执行模式下可用；([forwarder: string])可选前置提示词，([defaultValue: string])可选默认值(不会显示在输入框中)，([isHideInputValue: boolean])可选隐藏输入内容，适用于密码输入等场景；无返回值；不抛出错误。
-filesystem:
-    open(path: string[, mode: string]):object: 打开一个文件；(path: string)路径，在读模式下文件必须存在，([mode: string])模式；返回文件操作对象；行为与Python3+一致。
-    exists(path: string):boolean: 检查一个文件是否存在；(path: string)路径；返回存在状况；不抛出错误。
-    count(path: string):uint64: 返回一个目录下所有文件、文件夹的数量(不包括本身)；(path: string)路径；返回数量；在路径不为目录或不存在时抛出类型错误。
-    remove(path: string):uint64: 删除一个文件或文件夹；(path: string)路径；返回删除数量(如果删除文件夹，则还包括文件夹本身以及所有子文件或文件夹)；文件或文件夹不存在返回类型错误。
-crypto: 标准Web Crypto API。
-bytebuffer:
-    readAsJson(data: Uint8Array):Promise<object>: 异步将二进制字节数据解析为JSON对象；(data: Uint8Array)要解析的二进制字节数据；返回Promise对象，解决时返回解析后的JSON对象，拒绝时返回语法错误；解析JSON失败时抛出语法错误，参数类型不匹配抛出类型错误。
-    readAsFormData(data: Uint8Array):Promise<FormData>: 异步将二进制字节数据转换为FormData对象；(data: Uint8Array)要转换的二进制字节数据；返回Promise对象，解决时返回FormData对象，拒绝时返回对应错误；创建FormData失败时抛出内部错误，参数类型不匹配抛出类型错误。
-    readAsString(data: Uint8Array):Promise<string>: 异步将二进制字节数据转换为字符串；(data: Uint8Array)要转换的二进制字节数据；返回Promise对象，解决时返回转换后的字符串；参数类型不匹配抛出类型错误，不额外抛出错误。
-    decodeBase91(data: string[, isUrlEncoding: boolean]):Promise<Uint8Array>: 异步将Base91编码字符串解码为二进制字节数据；(data: string)Base91编码字符串，([isUrlEncoding: boolean])是否为URL安全编码，默认为false；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，第二个参数非布尔值抛出类型错误。
-    decodeBase85(data: string):Promise<Uint8Array>: 异步将Base85编码字符串解码为二进制字节数据；(data: string)Base85编码字符串；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，参数类型不匹配抛出类型错误。
-    decodeBase64(data: string[, isUrlEncoding: boolean]):Promise<Uint8Array>: 异步将Base64编码字符串解码为二进制字节数据；(data: string)Base64编码字符串，([isUrlEncoding: boolean])是否为URL安全编码，默认为false；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，第二个参数非布尔值抛出类型错误。
-    decodeBase62(data: string):Promise<Uint8Array>: 异步将Base62编码字符串解码为二进制字节数据；(data: string)Base62编码字符串；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，参数类型不匹配抛出类型错误。
-    decodeBase58(data: string):Promise<Uint8Array>: 异步将Base58编码字符串解码为二进制字节数据；(data: string)Base58编码字符串；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，参数类型不匹配抛出类型错误。
-    decodeBase32(data: string):Promise<Uint8Array>: 异步将Base32编码字符串解码为二进制字节数据；(data: string)Base32编码字符串；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，参数类型不匹配抛出类型错误。
-    decodeBase16(data: string):Promise<Uint8Array>: 异步将Base16编码字符串解码为二进制字节数据；(data: string)Base16编码字符串；返回Promise对象，解决时返回Uint8Array类型二进制数据，拒绝时返回内部错误；解码失败抛出内部错误，参数类型不匹配抛出类型错误。
-    encodeBase91(data: Uint8Array[, isUrlEncoding: boolean]):Promise<string>: 异步将二进制字节数据编码为Base91字符串；(data: Uint8Array)要编码的二进制字节数据，([isUrlEncoding: boolean])是否使用URL安全编码，默认为false；返回Promise对象，解决时返回Base91编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，第二个参数非布尔值抛出类型错误。
-    encodeBase85(data: Uint8Array):Promise<string>: 异步将二进制字节数据编码为Base85字符串；(data: Uint8Array)要编码的二进制字节数据；返回Promise对象，解决时返回Base85编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，参数类型不匹配抛出类型错误。
-    encodeBase64(data: Uint8Array[, isUrlEncoding: boolean]):Promise<string>: 异步将二进制字节数据编码为Base64字符串；(data: Uint8Array)要编码的二进制字节数据，([isUrlEncoding: boolean])是否使用URL安全编码，默认为false；返回Promise对象，解决时返回Base64编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，第二个参数非布尔值抛出类型错误。
-    encodeBase62(data: Uint8Array):Promise<string>: 异步将二进制字节数据编码为Base62字符串；(data: Uint8Array)要编码的二进制字节数据；返回Promise对象，解决时返回Base62编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，参数类型不匹配抛出类型错误。
-    encodeBase58(data: Uint8Array):Promise<string>: 异步将二进制字节数据编码为Base58字符串；(data: Uint8Array)要编码的二进制字节数据；返回Promise对象，解决时返回Base58编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，参数类型不匹配抛出类型错误。
-    encodeBase32(data: Uint8Array):Promise<string>: 异步将二进制字节数据编码为Base32字符串；(data: Uint8Array)要编码的二进制字节数据；返回Promise对象，解决时返回Base32编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，参数类型不匹配抛出类型错误。
-    encodeBase16(data: Uint8Array):Promise<string>: 异步将二进制字节数据编码为Base16字符串；(data: Uint8Array)要编码的二进制字节数据；返回Promise对象，解决时返回Base16编码字符串，拒绝时返回内部错误；编码失败抛出内部错误，参数类型不匹配抛出类型错误。
-    toBinary(data: any):Promise<Uint8Array>: 异步将任意支持类型的数据转换为Uint8Array二进制字节数据；(data: any)要转换的数据；返回Promise对象，解决时返回Uint8Array类型二进制数据；参数类型不支持时抛出类型错误，不额外抛出错误。
-    toString(data: Uint8Array):Promise<string>: 异步将二进制字节数据转换为字符串；(data: Uint8Array)要转换的二进制字节数据；返回Promise对象，解决时返回转换后的字符串；参数类型不匹配抛出类型错误，不额外抛出错误。
-            )";
-            }
-            return NewString(ctx, help).get(1);
         }
 
         static JSValue crypto_getRandomValues(JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) {
@@ -15478,37 +15499,6 @@ bytebuffer:
         static JSValue console_clear(JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) {
             ClearOutput();
             return JS_UNDEFINED;
-        }
-        static JSValue console_input(JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) {
-            if (argumentCount >= 1) {
-                JSV js_forwarder = JSV(&argumentValues[0]);
-                std::string forwarder = "";
-                if (!JS_IsString(js_forwarder.get(0)) || !ReadJSValueAsString(ctx, js_forwarder, forwarder)) {
-                    JS_ThrowTypeError(ctx, "[console.input] The first argument must be a string");
-                    return JS_EXCEPTION;
-                }
-                CreateOutput(stringToWstring(forwarder));
-            }
-            std::wstring defaultValue = L"";
-            if (argumentCount >= 2) {
-                JSV js_defaultValue = JSV(&argumentValues[1]);
-                std::string defaultVal = "";
-                if (!JS_IsString(js_defaultValue.get(0)) || !ReadJSValueAsString(ctx, js_defaultValue, defaultVal)) {
-                    JS_ThrowTypeError(ctx, "[console.input] The second argument must be a string");
-                    return JS_EXCEPTION;
-                }
-                defaultValue = stringToWstring(defaultVal);
-            }
-            bool isHidden = false;
-            if (argumentCount >= 3) {
-                JSV js_isHidden = JSV(&argumentValues[2]);
-                if (!JS_IsBool(js_isHidden.get(0)) || !ReadJSValueAsBool(ctx, js_isHidden, isHidden)) {
-                    JS_ThrowTypeError(ctx, "[console.input] The third argument must be a boolean");
-                    return JS_EXCEPTION;
-                }
-            }
-            std::wstring inputData = CreateInput(defaultValue, isHidden);
-            return NewString(ctx, wstringToString(inputData)).get(1);
         }
 
 
@@ -20281,7 +20271,7 @@ bytebuffer:
         bool isInit() {
             return isInit1;
         }
-        JSINFO eval(const std::wstring& InCode, const std::wstring& fileName = L"typein", const bool isHookOutput = false, OpaqueData data = {}) {
+        JSINFO eval(const std::wstring& InCode, const std::wstring& fileName = L"typein", const bool isHookOutput = false) {
             if (!isInit()) return {};
             std::string code = wstringToString(InCode);
 
@@ -20289,14 +20279,7 @@ bytebuffer:
             if (isHookOutput) isConsoleEnv = false;
             if (isHookOutput) ClearOutput();
 
-            JSV system = JavaScriptMethod::GetProperty(jsContext, JavaScriptMethod::NewGlobalObject(jsContext), "system");
-            JavaScriptMethod::SetAttribute(jsContext, system, "path", wstringToString(FormatPath(fileName)));
-            if (data.isValid) {
-                JavaScriptMethod::SetAttribute(jsContext, system, "cmdLine", wstringToString(data.cmdLine));
-                JavaScriptMethod::SetAttribute(jsContext, system, "cmdLineArgs", JavaScriptMethod::NewObject(jsContext, data.cmdLineArgs));
-                JavaScriptMethod::SetAttribute(jsContext, system, "scriptPath", wstringToString(data.scriptPath));
-            }
-
+            JavaScriptMethod::SetAttribute(jsContext, JavaScriptMethod::GetProperty(jsContext, JavaScriptMethod::NewGlobalObject(jsContext), "system"), "fileName", wstringToString(fileName));
             JSValue ret = JS_Eval(
                 jsContext,
                 code.c_str(),
