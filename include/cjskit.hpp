@@ -9086,7 +9086,7 @@ namespace cjs {
                     }
                 }
 
-                return NewUint64(ctx, successCount).get(1);
+                return NewNumber(ctx, (double)successCount).get(1);
                 });
 
             if (!isModuleMode) {
@@ -9603,11 +9603,11 @@ namespace cjs {
 
                 xhr->open(stringToWstring(method), stringToWstring(url), false, stringToWstring(username), stringToWstring(password));
 
-                SetAttribute(ctx, thisVal, "readyState", NewUint64(ctx, 0));
+                SetAttribute(ctx, thisVal, "readyState", NewNumber(ctx, 0));
                 SetAttribute(ctx, thisVal, "response", NewString(ctx, ""));
                 SetAttribute(ctx, thisVal, "responseType", NewString(ctx, ""));
 
-                SetAttribute(ctx, thisVal, "status", NewUint64(ctx, 0));
+                SetAttribute(ctx, thisVal, "status", NewNumber(ctx, 0));
                 SetAttribute(ctx, thisVal, "statusText", NewString(ctx, ""));
 
                 return JS_UNDEFINED;
@@ -10647,7 +10647,7 @@ namespace cjs {
             SetAttribute(ctx, internal, "_isPrivate", NewBool(ctx, true), 0);
             SetAttribute(ctx, internal, "data", NewArrayBuffer(ctx, blobData), 0);
             SetAttribute(ctx, blob, "type", NewString(ctx, type), 0);
-            SetAttribute(ctx, blob, "size", NewUint64(ctx, blobData.size()), 0);
+            SetAttribute(ctx, blob, "size", NewNumber(ctx, (double)blobData.size()), 0);
             AppendMethod(ctx, blob, "slice", [](JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues)->JSValue {
 
                 JSV size = GetProperty(ctx, thisVal, "size");
@@ -10656,7 +10656,7 @@ namespace cjs {
                 BYTEBUFFER data = {};
                 ReadJSValueAsArrayBuffer(ctx, js_data, data);
 
-                JSV js_start = (argumentCount >= 1) ? JSV(ctx, &argumentValues[0]).cget(1).cset(1) : NewUint64(ctx, 0);
+                JSV js_start = (argumentCount >= 1) ? JSV(ctx, &argumentValues[0]).cget(1).cset(1) : NewNumber(ctx, 0);
                 JSV js_end = (argumentCount >= 2) ? JSV(ctx, &argumentValues[1]).cget(1).cset(1) : size;
                 JSV js_type = (argumentCount >= 3) ? JSV(ctx, &argumentValues[2]).cget(1).cset(1) : type;
 
@@ -11710,7 +11710,7 @@ namespace cjs {
                 JSV returnValue = NewObject(ctx);
                 JSV vIsSuccess = NewBool(ctx, ret);
                 SetAttribute(ctx, returnValue, "isSuccess", vIsSuccess);
-                JSV vExitCode = NewUint64(ctx, static_cast<uint64_t>(returnCode));
+                JSV vExitCode = NewNumber(ctx, static_cast<double>(returnCode));
                 SetAttribute(ctx, returnValue, "exitCode", vExitCode);
                 JSV vOutput = NewString(ctx, wstringToString(result));
                 SetAttribute(ctx, returnValue, "output", vOutput);
@@ -14172,7 +14172,7 @@ bytebuffer:
                     if (pkd.name == a_name || (a_name.find("RSA") != std::string::npos && pkd.name == "RSA")) {
                         if (pkd.modulusLength != 0) {
                             if (pkd.modulusLength >= 1024 && pkd.modulusLength <= 16384 && pkd.modulusLength % 8 == 0) {
-                                SetAttribute(ctx, js_algorithm, "modulusLength", NewUint64(ctx, pkd.modulusLength), 0);
+                                SetAttribute(ctx, js_algorithm, "modulusLength", NewNumber(ctx, (double)pkd.modulusLength), 0);
                             }
                             else {
                                 promise.Reject(ctx, NewTypeError(ctx, "[crypto.subtle.importKey] RSA modulus length must be 1024-16384 bits and multiple of 8"));
@@ -14181,7 +14181,7 @@ bytebuffer:
                         }
                         if (pkd.publicExponent != 0) {
                             if (pkd.publicExponent > 1 && pkd.publicExponent % 2 == 1) {
-                                SetAttribute(ctx, js_algorithm, "publicExponent", NewUint64(ctx, pkd.publicExponent), 0);
+                                SetAttribute(ctx, js_algorithm, "publicExponent", NewNumber(ctx, (double)pkd.publicExponent), 0);
                             }
                             else {
                                 promise.Reject(ctx, NewTypeError(ctx, "[crypto.subtle.importKey] RSA public exponent must be odd and greater than 1"));
@@ -14316,7 +14316,7 @@ bytebuffer:
                         }
                         else {
                             a_length = keyBinary.size() * 8;
-                            SetAttribute(ctx, js_algorithm, "length", NewUint64(ctx, a_length), 0);
+                            SetAttribute(ctx, js_algorithm, "length", NewNumber(ctx, (double)a_length), 0);
                         }
                     }
                     else if (a_name == "ChaCha20-Poly1305") {
@@ -15628,7 +15628,7 @@ bytebuffer:
             JSV jsClosed = NewBool(ctx, false);
             SetAttribute(ctx, fileControllerObject, "closed", jsClosed, -1);
 
-            JSV jsSeek = NewUint64(ctx, 0);
+            JSV jsSeek = NewNumber(ctx, 0);
 
             SetAttribute(ctx, fileControllerObject, "seekPtr", jsSeek, -1);
 
@@ -15708,7 +15708,7 @@ bytebuffer:
                     SetAttribute(ctx, vThisVal, "buffer", uint8Array);
 
                     ULL newSeek = seek + fileData.size();
-                    JSV newSeekVal = NewUint64(ctx, newSeek);
+                    JSV newSeekVal = NewNumber(ctx, (double)newSeek);
                     SetAttribute(ctx, vThisVal, "seekPtr", newSeekVal);
 
                     if (modeInt & filesystem_open_mode::FILE_MODE_BIN) {
@@ -15803,10 +15803,10 @@ bytebuffer:
                     else {
                         newSeek = seek + writeSize;
                     }
-                    JSV newSeekVal = NewUint64(ctx, newSeek);
+                    JSV newSeekVal = NewNumber(ctx, (double)newSeek);
                     SetAttribute(ctx, vThisVal, "seekPtr", newSeekVal, -1);
 
-                    JSV returnSize = NewUint64(ctx, writeSize);
+                    JSV returnSize = NewNumber(ctx, (double)writeSize);
                     return returnSize.get(1);
                     }, -1, 0);
             }
@@ -15903,7 +15903,7 @@ bytebuffer:
 
                 ULL size = fc->size();
 
-                JSV returnSize = NewUint64(ctx, static_cast<uint64_t>(size));
+                JSV returnSize = NewNumber(ctx, static_cast<double>(size));
                 return returnSize.get(1);
                 }, -1, 0);
             AppendMethod(ctx, fileControllerObject, "seek", [](JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) ->JSValue {
@@ -16001,7 +16001,7 @@ bytebuffer:
                     }
                 }
 
-                JSV newSeekVal = NewUint64(ctx, static_cast<uint64_t>(new_seek));
+                JSV newSeekVal = NewNumber(ctx, static_cast<double>(new_seek));
                 SetAttribute(ctx, vThisVal, "seekPtr", newSeekVal, -1);
 
                 return JS_UNDEFINED;
