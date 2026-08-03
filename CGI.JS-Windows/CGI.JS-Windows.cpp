@@ -2,7 +2,7 @@
 
 #ifndef AY_CJS_CPP
 #define AY_CJS_CPP
-#define AY_CJS_CPP_VW std::wstring(L"2.2.20260727.01")
+#define AY_CJS_CPP_VW std::wstring(L"2.2.20260803.01")
 #define AY_CJS_CPP_VL []() -> std::wstring { \
     std::wstring s(AY_CJS_CPP_VW); \
     s.erase(std::remove(s.begin(), s.end(), L'.'), s.end()); \
@@ -281,12 +281,6 @@ int FastCgiMain(const OpaqueData& data, std::wstring startFilePath = L"") {
             if (cScriptPath == nullptr) goto EndProcessFilePath;
             scriptPath1 = stringToWstring(cScriptPath);
         }
-        {
-            FileController fc(scriptPath2, L"");
-            BYTEBUFFER data = {};
-            fc.read(0, fc.size(), &data);
-            fileContent = GetTextFromBinarySafely(&data);
-        }
         if (scriptPath1.empty() && scriptPath2.empty()) {
             isSuccess = false;
             goto EndProcessFilePath;
@@ -298,6 +292,12 @@ int FastCgiMain(const OpaqueData& data, std::wstring startFilePath = L"") {
             scriptPath = scriptPath1;
         }
         isSuccess = true;
+        {
+            FileController fc(scriptPath, L"");
+            BYTEBUFFER data = {};
+            fc.read(0, fc.size(), &data);
+            fileContent = GetTextFromBinarySafely(&data);
+        }
     EndProcessFilePath:;
         JavaScript* js = nullptr;
         if (isSuccess) {
