@@ -8863,7 +8863,7 @@ namespace cjs {
             SetAttribute(ctx, request, "body", "");
 
             JSV response = NewObject(ctx, network, "response");
-            SetSymbolName(ctx, response, "ResponstNetwork");
+            SetSymbolName(ctx, response, "ResponseNetwork");
             SetAttribute(ctx, response, "header", NewObject(ctx));
             SetAttribute(ctx, response, "body", "");
 
@@ -15750,7 +15750,6 @@ bytebuffer:
                         JS_ThrowTypeError(ctx, "[filesystem.open->write] This instance object is invalid");
                         return JS_EXCEPTION;
                     }
-
                     BYTEBUFFER writeData = {};
                     JSValue jsData = argumentValues[0];
                     JSV vData = JSV(&jsData);
