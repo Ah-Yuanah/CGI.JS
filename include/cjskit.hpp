@@ -5814,8 +5814,67 @@ namespace cjs {
         }
         if (mapLen != base) return false;
 
+        if (base == 16) {
+            for (uint8_t b : input) {
+                result.push_back(codingMap[(b >> 4) & 0x0F]);
+                result.push_back(codingMap[b & 0x0F]);
+            }
+            *binaryPtr = std::move(result);
+            return true;
+        }
+
+        if (base == 64) {
+            uint32_t buf = 0;
+            int bits = 0;
+            for (uint8_t b : input) {
+                buf = (buf << 8) | b;
+                bits += 8;
+                while (bits >= 6) {
+                    bits -= 6;
+                    result.push_back(codingMap[(buf >> bits) & 0x3F]);
+                }
+            }
+            int padCnt = 0;
+            if (bits > 0) {
+                buf <<= (6 - bits);
+                result.push_back(codingMap[buf & 0x3F]);
+                padCnt = (4 - ((int)result.size() % 4)) % 4;
+            }
+            if (!isUrl) {
+                result.insert(result.end(), padCnt, '=');
+            }
+            *binaryPtr = std::move(result);
+            return true;
+        }
+
+        if (base == 32) {
+            uint32_t buf = 0;
+            int bits = 0;
+            for (uint8_t b : input) {
+                buf = (buf << 8) | b;
+                bits += 8;
+                while (bits >= 5) {
+                    bits -= 5;
+                    result.push_back(codingMap[(buf >> bits) & 0x1F]);
+                }
+            }
+            int padCnt = 0;
+            if (bits > 0) {
+                buf <<= (5 - bits);
+                result.push_back(codingMap[buf & 0x1F]);
+                padCnt = (8 - ((int)result.size() % 8)) % 8;
+            }
+            if (!isUrl) {
+                result.insert(result.end(), padCnt, '=');
+            }
+            *binaryPtr = std::move(result);
+            return true;
+        }
+
         std::vector<uint64_t> num;
-        for (unsigned char byte : input) {
+        bool hasNonZero = false;
+        for (uint8_t byte : input) {
+            if (byte != 0) hasNonZero = true;
             uint64_t carry = byte;
             for (auto& digit : num) {
                 uint64_t temp = digit * 256 + carry;
@@ -5824,7 +5883,11 @@ namespace cjs {
             }
             if (carry > 0) num.push_back(carry);
         }
-        if (num.empty()) num.push_back(0);
+        if (!hasNonZero) {
+            result.push_back(codingMap[0]);
+            *binaryPtr = std::move(result);
+            return true;
+        }
 
         while (!num.empty()) {
             uint64_t remainder = 0;
@@ -5838,20 +5901,7 @@ namespace cjs {
             num = std::move(newNum);
             result.push_back(static_cast<unsigned char>(codingMap[remainder]));
         }
-
         std::reverse(result.begin(), result.end());
-
-        size_t paddingCount = 0;
-        switch (base) {
-        case 16: paddingCount = result.size() % 2 == 1 ? 1 : 0; if (paddingCount) result.insert(result.begin(), '0'); break;
-        case 32: paddingCount = (8 - (result.size() % 8)) % 8; break;
-        case 64: paddingCount = (4 - (result.size() % 4)) % 4; break;
-        default: paddingCount = 0; break;
-        }
-
-        bool isUrlMode = isUrl && (base == 64 || base == 32 || base == 91);
-        if (!isUrlMode && (base == 32 || base == 64))
-            result.insert(result.end(), paddingCount, '=');
 
         if (result.empty()) result.push_back(codingMap[0]);
         *binaryPtr = std::move(result);
@@ -9007,6 +9057,7 @@ namespace cjs {
                     AppendMethod(ctx, filesystem, "exists", filesystem_exists);
                     AppendMethod(ctx, filesystem, "remove", filesystem_remove);
                     AppendMethod(ctx, filesystem, "count", filesystem_count);
+                    AppendMethod(ctx, filesystem, "list", filesystem_list);
                     successCount++;
                 }
 
@@ -11895,6 +11946,7 @@ filesystem:
     exists(path: string):boolean: 检查一个文件是否存在；(path: string)路径；返回存在状况；不抛出错误。
     count(path: string):uint64: 返回一个目录下所有文件、文件夹的数量(不包括本身)；(path: string)路径；返回数量；在路径不为目录或不存在时抛出类型错误。
     remove(path: string):uint64: 删除一个文件或文件夹；(path: string)路径；返回删除数量(如果删除文件夹，则还包括文件夹本身以及所有子文件或文件夹)；文件或文件夹不存在返回类型错误。
+    list(path: string):object: 列出一个目录下的所有文件和文件夹；(path: string)路径；返回对象键为路径值为文件名或文件夹名；在路径不为目录或不存在时抛出类型错误。
 crypto: 标准Web Crypto API。
 bytebuffer:
     readAsJson(data: Uint8Array):Promise<object>: 异步将二进制字节数据解析为JSON对象；(data: Uint8Array)要解析的二进制字节数据；返回Promise对象，解决时返回解析后的JSON对象，拒绝时返回语法错误；解析JSON失败时抛出语法错误，参数类型不匹配抛出类型错误。
@@ -13656,6 +13708,7 @@ bytebuffer:
                             return;
                         }
 
+                        jwk[L"kty"] = kty;
                         jwk[L"alg"] = alg;
                         BinaryToBaseX(&rjd.e, 64, true);
                         BinaryToBaseX(&rjd.n, 64, true);
@@ -13692,6 +13745,7 @@ bytebuffer:
                             return;
                         }
 
+                        jwk[L"kty"] = kty;
                         jwk[L"crv"] = namedCurve;
 
                         BinaryToBaseX(&ejd.x, 64, true);
@@ -13722,6 +13776,7 @@ bytebuffer:
                             return;
                         }
 
+                        jwk[L"kty"] = kty;
                         jwk[L"crv"] = name;
 
                         BinaryToBaseX(&publicKeyBinary, 64, true);
@@ -15591,6 +15646,29 @@ bytebuffer:
         }
 
 
+        static JSValue filesystem_list(JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) {
+            if (argumentCount != 1) {
+                JS_ThrowTypeError(ctx, "[filesystem.list] Only 1 argument is supported: (path)");
+                return JS_EXCEPTION;
+            }
+            JSV vPath = JSV(&argumentValues[0]);
+            std::string path = "";
+            if (!JS_IsString(vPath.get(0)) || !ReadJSValueAsString(ctx, vPath, path)) {
+                JS_ThrowTypeError(ctx, "[filesystem.list] The first argument must be a string");
+                return JS_EXCEPTION;
+            }
+            FileController fc = FileController(stringToWstring(path), stringToWstring(GetCurrentWorkDirectory(ctx)));
+            if (!fc.isDir()) {
+                JS_ThrowTypeError(ctx, "[filesystem.list] The path must be a directory");
+                return JS_EXCEPTION;
+            }
+            OBJECT fileList = {};
+            GMMT list = fc.list();
+            for (const auto& [name, path] : list) {
+                fileList[path] = name;
+            }
+            return NewObject(ctx, fileList).get(1);
+        }
         static JSValue filesystem_count(JSContext* ctx, JSValueConst thisVal, int argumentCount, JSValueConst* argumentValues) {
             if (argumentCount != 1) {
                 JS_ThrowTypeError(ctx, "[filesystem.count] Only 1 argument is supported: (path)");
