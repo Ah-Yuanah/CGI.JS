@@ -429,14 +429,14 @@ namespace cjs {
             return {};
         }
         int requiredSize = WideCharToMultiByte(
-            CP_UTF8,               // 目标编码：UTF-8
-            0,                     // 转换标志：0（不处理无效字符）
-            str.data(),            // 输入宽字符串
-            static_cast<int>(str.size()), // 输入长度（不含\0）
-            nullptr,               // 输出缓冲区：先不传
-            0,                     // 输出缓冲区大小：0（仅获取所需大小）
-            nullptr,               // 默认字符：NULL（遇到无效字符失败）
-            nullptr                // 是否使用默认字符：NULL
+            CP_UTF8,
+            0,
+            str.data(),
+            static_cast<int>(str.size()),
+            nullptr,
+            0,
+            nullptr,
+            nullptr
         );
         if (requiredSize == 0) {
             return {};
@@ -467,12 +467,12 @@ namespace cjs {
             return {};
         }
         int requiredSize = MultiByteToWideChar(
-            CP_UTF8,               // 源编码：UTF-8
-            0,                     // 转换标志：0
-            str.data(),            // 输入多字节字符串
-            static_cast<int>(str.size()), // 输入长度
-            nullptr,               // 输出缓冲区：先不传
-            0                      // 输出缓冲区大小：0
+            CP_UTF8,
+            0,
+            str.data(),
+            static_cast<int>(str.size()),
+            nullptr,
+            0
         );
         if (requiredSize == 0) {
             return {};
@@ -1469,7 +1469,7 @@ namespace cjs {
         mutable RecursiveMutex m_mutex;
 
     public:
-        // 类型别名（完全匹配标准容器）
+
         using key_type = Key;
         using mapped_type = Value;
         using value_type = std::pair<const Key, Value>;
@@ -1487,7 +1487,7 @@ namespace cjs {
         using local_iterator = typename map_type::local_iterator;
         using const_local_iterator = typename map_type::const_local_iterator;
 
-        // 构造函数
+
         unordered_map_lock() = default;
         explicit unordered_map_lock(size_type n) : m_map(n) {}
         unordered_map_lock(size_type n, const hasher& hf) : m_map(n, hf) {}
@@ -1504,22 +1504,22 @@ namespace cjs {
 
         unordered_map_lock(std::initializer_list<value_type> init) : m_map(init) {}
 
-        // 拷贝构造
+
         unordered_map_lock(const unordered_map_lock& other) {
             std::lock_guard<decltype(other.m_mutex)> lock(other.m_mutex);
             m_map = other.m_map;
         }
 
-        // 移动构造
+
         unordered_map_lock(unordered_map_lock&& other) noexcept {
             std::lock_guard<decltype(other.m_mutex)> lock(other.m_mutex);
             m_map = std::move(other.m_map);
         }
 
-        // 析构函数
+
         ~unordered_map_lock() = default;
 
-        // 赋值操作
+
         unordered_map_lock& operator=(const unordered_map_lock& other) {
             if (this != &other) {
                 std::scoped_lock lock(m_mutex, other.m_mutex);
@@ -1542,14 +1542,14 @@ namespace cjs {
             return *this;
         }
 
-        // --- 手动锁控制接口 ---
+
         void lock() const { m_mutex.lock(); }
         void unlock() const { m_mutex.unlock(); }
         bool try_lock() const { return m_mutex.try_lock(); }
 
-        // --- 自动加锁的接口 ---
 
-        // 元素访问
+
+
         mapped_type& operator[](const key_type& key) {
             std::lock_guard<decltype(m_mutex)> lock(m_mutex);
             return m_map[key];
@@ -1568,7 +1568,7 @@ namespace cjs {
             return m_map.at(key);
         }
 
-        // 容量
+
         bool empty() const {
             std::lock_guard<decltype(m_mutex)> lock(m_mutex);
             return m_map.empty();
@@ -1582,7 +1582,7 @@ namespace cjs {
             return m_map.max_size();
         }
 
-        // 修改器
+
         void clear() noexcept {
             std::lock_guard<decltype(m_mutex)> lock(m_mutex);
             m_map.clear();
@@ -1654,7 +1654,7 @@ namespace cjs {
             }
         }
 
-        // 查找
+
         iterator find(const key_type& key) {
             std::lock_guard<decltype(m_mutex)> lock(m_mutex);
             return m_map.find(key);
@@ -1678,7 +1678,7 @@ namespace cjs {
             return m_map.equal_range(key);
         }
 
-        // 哈希策略
+
         hasher hash_function() const {
             std::lock_guard<decltype(m_mutex)> lock(m_mutex);
             return m_map.hash_function();
@@ -1688,7 +1688,7 @@ namespace cjs {
             return m_map.key_eq();
         }
 
-        // 桶接口
+
         size_type bucket_count() const {
             std::lock_guard<decltype(m_mutex)> lock(m_mutex);
             return m_map.bucket_count();
@@ -1706,7 +1706,7 @@ namespace cjs {
             return m_map.bucket(key);
         }
 
-        // 负载因子
+
         float load_factor() const {
             std::lock_guard<decltype(m_mutex)> lock(m_mutex);
             return m_map.load_factor();
@@ -1729,7 +1729,7 @@ namespace cjs {
             m_map.reserve(n);
         }
 
-        // 非标准实用接口
+
         bool find(const key_type& key, mapped_type& outValue) const {
             std::lock_guard<decltype(m_mutex)> lock(m_mutex);
             auto it = m_map.find(key);
@@ -1746,13 +1746,13 @@ namespace cjs {
             return it != m_map.end() ? std::optional<mapped_type>(it->second) : std::nullopt;
         }
 
-        // --- 不加锁的接口 ---
+
 
         map_type* getPtr() {
             return &m_map;
         }
 
-        // 迭代器
+
         iterator begin() noexcept { return m_map.begin(); }
         const_iterator begin() const noexcept { return m_map.begin(); }
         const_iterator cbegin() const noexcept { return m_map.cbegin(); }
@@ -2757,18 +2757,18 @@ namespace cjs {
         StdExceptionVariant cause;
     };
     struct URLINFO {
-        std::wstring href = L"";  // 完整 URL
-        std::wstring protocol = L"";  // 协议，例如 "http:"、"https:"
-        std::wstring host = L"";  // 主机名 + 端口（非默认端口时）
-        std::wstring hostname = L"";  // 主机名（域名或IP）
-        int port = -1;   // 端口号（-1 表示未指定）
+        std::wstring href = L"";
+        std::wstring protocol = L"";
+        std::wstring host = L"";
+        std::wstring hostname = L"";
+        int port = -1;
         std::wstring path = L"";
-        std::wstring pathname = L"";  // 路径部分，例如 "/index.html"
-        std::wstring search = L"";  // 查询字符串，例如 "?id=123"
-        std::wstring hash = L"";  // 锚点部分，例如 "#section"
-        std::wstring origin = L"";  // 协议 + 主机 + 端口，例如 "https://example.com:8080"
-        std::wstring username = L"";  // 用户名（如果 URL 中包含）
-        std::wstring password = L"";  // 密码（如果 URL 中包含）
+        std::wstring pathname = L"";
+        std::wstring search = L"";
+        std::wstring hash = L"";
+        std::wstring origin = L"";
+        std::wstring username = L"";
+        std::wstring password = L"";
     };
     URLINFO GetURLINFOFromUrl(std::wstring url) noexcept {
         URLINFO info;
@@ -2917,8 +2917,7 @@ namespace cjs {
 
     class URLInstanceClass {
     public:
-        URLInstanceClass() {
-        };
+        URLInstanceClass() {};
         URLInstanceClass(const std::wstring url) {
             ProcessURL(url);
             UpdateInfo();
@@ -2930,18 +2929,18 @@ namespace cjs {
 
         ~URLInstanceClass() = default;
 
-        std::wstring href = L"";  // 完整 URL
-        std::wstring protocol = L"";  // 协议，例如 "http:"、"https:"
-        std::wstring host = L"";  // 主机名 + 端口（非默认端口时）
-        std::wstring hostname = L"";  // 主机名（域名或IP）
-        int port = -1;   // 端口号（-1 表示未指定）
+        std::wstring href = L"";
+        std::wstring protocol = L"";
+        std::wstring host = L"";
+        std::wstring hostname = L"";
+        int port = -1;
         std::wstring path = L"";
-        std::wstring pathname = L"";  // 路径部分，例如 "/index.html"
-        std::wstring search = L"";  // 查询字符串，例如 "?id=123"
-        std::wstring hash = L"";  // 锚点部分，例如 "#section"
-        std::wstring origin = L"";  // 协议 + 主机 + 端口，例如 "https://example.com:8080"
-        std::wstring username = L"";  // 用户名（如果 URL 中包含）
-        std::wstring password = L"";  // 密码（如果 URL 中包含）
+        std::wstring pathname = L"";
+        std::wstring search = L"";
+        std::wstring hash = L"";
+        std::wstring origin = L"";
+        std::wstring username = L"";
+        std::wstring password = L"";
 
     private:
         void UpdateInfo() {
@@ -3021,9 +3020,9 @@ namespace cjs {
     std::wstring errorOutput = L"";
     GMMT outputTemp = {};
     bool isPaused = false;
-    /////
+
     bool isKeepWTMode = false;
-    /////
+
     bool isStartByFastCgi = false;
 
     double timeout = 0.0;
@@ -3086,27 +3085,27 @@ namespace cjs {
 
     template <typename T>
     bool RemoveSameInVector(std::vector<T*>& vec) {
-        // 记录已出现的指针值，用于快速判断重复
+
         std::unordered_set<T*> seen;
-        // 标记是否有元素被移除
+
         bool has_removed = false;
 
-        // 使用 erase-remove 惯用法，原地移除重复元素
+
         auto new_end = std::remove_if(
             vec.begin(), vec.end(),
             [&seen, &has_removed](T* ptr) {
-                // 如果指针已存在，标记为重复并返回true（会被移除）
+
                 if (seen.count(ptr)) {
                     has_removed = true;
                     return true;
                 }
-                // 否则将指针加入集合，返回false（保留）
+
                 seen.insert(ptr);
                 return false;
             }
         );
 
-        // 清理向量中移除后的多余空间
+
         vec.erase(new_end, vec.end());
 
         return has_removed;
@@ -3479,26 +3478,26 @@ namespace cjs {
         RGBColor bgRgb = hex2rgb(bgColor, true);
 
         if (isWTConsole) {
-            return 0x0F; // 白字黑底（0x0F = 背景0 + 前景15）
+            return 0x0F;
         }
 
         const RGBColor console16[16] = {
-            {0,     0,     0},     // 0: 纯黑（Black）
-            {0,     0,     128},   // 1: 深蓝（DarkBlue）
-            {0,     128,   0},     // 2: 深绿（DarkGreen）
-            {0,     128,   128},   // 3: 深青（DarkCyan）
-            {128,   0,     0},     // 4: 深红（DarkRed）
-            {128,   0,     128},   // 5: 深洋红（DarkMagenta）
-            {128,   128,   0},     // 6: 深黄（DarkYellow）
-            {192,   192,   192},   // 7: 浅灰（LightGray）
-            {128,   128,   128},   // 8: 深灰（DarkGray）
-            {0,     0,     255},   // 9: 亮蓝（BrightBlue）- 天蓝色匹配这个
-            {0,     255,   0},     // 10: 亮绿（BrightGreen）
-            {0,     255,   255},   // 11: 亮青（BrightCyan）
-            {255,   0,     0},     // 12: 亮红（BrightRed）- 纯红匹配这个
-            {255,   0,     255},   // 13: 亮洋红（BrightMagenta）
-            {255,   255,   0},     // 14: 亮黄（BrightYellow）
-            {255,   255,   255}    // 15: 纯白（White）
+            {0,     0,     0},
+            {0,     0,     128},
+            {0,     128,   0},
+            {0,     128,   128},
+            {128,   0,     0},
+            {128,   0,     128},
+            {128,   128,   0},
+            {192,   192,   192},
+            {128,   128,   128},
+            {0,     0,     255},
+            {0,     255,   0},
+            {0,     255,   255},
+            {255,   0,     0},
+            {255,   0,     255},
+            {255,   255,   0},
+            {255,   255,   255}
         };
 
         auto rgbDist = [](const RGBColor& c1, const RGBColor& c2) -> double {
@@ -3518,31 +3517,31 @@ namespace cjs {
             }
         }
 
-        // ========== 修复点2：重构灰度兜底逻辑，仅对“无明显色彩”的颜色生效 ==========
-        // 1. 计算颜色的“彩度”（饱和度），判断是否为灰度系颜色
+
+
         auto getSaturation = [](const RGBColor& rgb) -> double {
             int maxVal = std::max({ rgb.r, rgb.g, rgb.b });
             int minVal = std::min({ rgb.r, rgb.g, rgb.b });
-            if (maxVal == minVal) return 0.0; // 纯灰度
+            if (maxVal == minVal) return 0.0;
             double l = (maxVal + minVal) / 2.0 / 255.0;
             double s = (maxVal - minVal) / 255.0 / (1 - std::abs(2 * l - 1));
-            return s; // 饱和度 0.0-1.0，0=纯灰，1=纯彩
+            return s;
             };
 
-        // 2. 灰度兜底仅在两个条件同时满足时触发：
-        //    - 饱和度 < 0.2（几乎无色彩）
-        //    - 最小距离 > 100（与16色匹配度极低）
+
+
+
         double saturation = getSaturation(fgRgb);
         const double SATURATION_THRESHOLD = 0.2;
         const double DISTANCE_THRESHOLD = 100.0;
 
         if (saturation < SATURATION_THRESHOLD && minFgDist > DISTANCE_THRESHOLD) {
-            // 仅对低饱和度的灰度色执行兜底
+
             int gray = (fgRgb.r * 299 + fgRgb.g * 587 + fgRgb.b * 114) / 1000;
-            if (gray <= 40) fgIdx = 0;    // 近黑 → 0号
-            else if (gray <= 120) fgIdx = 8; // 深灰 → 8号
-            else if (gray <= 200) fgIdx = 7; // 浅灰 → 7号
-            else fgIdx = 15;              // 近白 → 15号
+            if (gray <= 40) fgIdx = 0;
+            else if (gray <= 120) fgIdx = 8;
+            else if (gray <= 200) fgIdx = 7;
+            else fgIdx = 15;
         }
 
         int bgIdx = 0;
@@ -3759,37 +3758,37 @@ namespace cjs {
         if (!isConsoleEnv) {
             return;
         }
-        // 获取控制台句柄
+
         HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
         if (hConsole == INVALID_HANDLE_VALUE) return;
 
-        // 获取当前光标位置
+
         CONSOLE_SCREEN_BUFFER_INFO csbi;
         if (!GetConsoleScreenBufferInfo(hConsole, &csbi)) return;
         COORD pos = csbi.dwCursorPosition;
 
-        // 1. 先向前移动光标 offset 个字符（处理偏移）
+
         for (ULL i = 0; i < offset; i++) {
             if (pos.X > 0) {
-                pos.X--; // 列向前移
+                pos.X--;
             }
             else if (pos.Y > 0) {
-                pos.Y--; // 行向上移，列到最后一列
+                pos.Y--;
                 pos.X = csbi.dwSize.X - 1;
             }
             else {
-                break; // 到控制台开头，停止偏移
+                break;
             }
         }
 
-        // 2. 从当前偏移位置开始，删除 size 个字符（用空格覆盖）
+
         COORD delPos = pos;
         DWORD written;
         for (ULL i = 0; i < size; i++) {
-            // 用空格覆盖字符（简单删除）
+
             FillConsoleOutputCharacterA(hConsole, ' ', 1, delPos, &written);
 
-            // 向后移动删除位置（避免越界）
+
             if (delPos.X < csbi.dwSize.X - 1) {
                 delPos.X++;
             }
@@ -3798,46 +3797,46 @@ namespace cjs {
                 delPos.X = 0;
             }
             else {
-                break; // 到控制台末尾，停止删除
+                break;
             }
         }
 
-        // 3. 将光标移到删除后的起始位置
+
         SetConsoleCursorPosition(hConsole, pos);
     }
 
     void UpOutput(ULL size, ULL offset) {
-        // 获取控制台句柄
+
         HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
         if (hConsole == INVALID_HANDLE_VALUE) return;
 
-        // 获取控制台缓冲区信息
+
         CONSOLE_SCREEN_BUFFER_INFO csbi;
         if (!GetConsoleScreenBufferInfo(hConsole, &csbi)) return;
 
-        // 边界保护：offset 不能超过控制台最大行数
+
         if (offset >= csbi.dwSize.Y) return;
 
-        // 从 offset 行的第0列开始，删除 size 列的字符
+
         COORD delPos;
-        delPos.Y = (SHORT)offset; // 目标行
+        delPos.Y = (SHORT)offset;
         DWORD written;
         for (ULL i = 0; i < size; i++) {
-            delPos.X = (SHORT)i; // 第i列
-            // 边界保护：列数不超过控制台最大列数
+            delPos.X = (SHORT)i;
+
             if (delPos.X >= csbi.dwSize.X) break;
 
-            // 用空格覆盖字符（删除）
+
             FillConsoleOutputCharacterA(hConsole, ' ', 1, delPos, &written);
         }
 
-        // 光标移到删除区域的起始位置（可选）
+
         delPos.X = 0;
         SetConsoleCursorPosition(hConsole, delPos);
     }
 
     bool IsCodeEmpty(const std::wstring& code) {
-        // 遍历字符串中的每一个宽字符
+
         for (wchar_t ch : code) {
             if (!std::iswspace(static_cast<wint_t>(ch))) {
                 return false;
@@ -3857,19 +3856,19 @@ namespace cjs {
             const char* stackCStr = JS_ToCString(jsContext, stackVal);
             if (stackCStr && *stackCStr) {
                 std::string stackStr = stackCStr;
-                // 移除所有空白字符
+
                 stackStr.erase(std::remove_if(stackStr.begin(), stackStr.end(), isspace), stackStr.end());
 
                 const std::string atEvalPrefix = "at<eval>(";
                 const std::string atPrefix = "at";
 
-                // 第一步：找最末尾的 at<eval>(
+
                 size_t lastAtEvalPos = stackStr.rfind(atEvalPrefix);
                 if (lastAtEvalPos != std::string::npos) {
-                    // 处理最后一个 at<eval>(...) 场景
-                    // ( 从当前 at<eval>( 位置找第一个 (
+
+
                     size_t leftBrace = stackStr.find('(', lastAtEvalPos);
-                    // ) 从字符串末尾找第一个 )
+
                     size_t rightBrace = stackStr.rfind(')');
 
                     if (leftBrace != std::string::npos && rightBrace != std::string::npos && leftBrace < rightBrace) {
@@ -3877,12 +3876,12 @@ namespace cjs {
                     }
                 }
                 else {
-                    // 第二步：如果没有 at<eval>(，找最末尾的 at
+
                     size_t lastAtPos = stackStr.rfind(atPrefix);
                     if (lastAtPos != std::string::npos) {
-                        // 确保找到的 "at" 不是其他字符串的子串（比如 "data" 中的 "at"），这里简单校验：
-                        // 1. "at" 是独立的前缀（即前一个字符不存在或不是字母）
-                        // 2. 只取最后一个 "at" 之后的所有内容
+
+
+
                         bool isValidAt = (lastAtPos == 0) || (!isalpha(stackStr[lastAtPos - 1]));
                         if (isValidAt) {
                             coreErr = stackStr.substr(lastAtPos + atPrefix.length());
@@ -3904,7 +3903,7 @@ namespace cjs {
     std::vector<std::wstring> GetErrorFrontStack(JSContext* jsContext, JSValue exception) {
         std::vector<std::wstring> resultStack;
 
-        // 入参合法性校验
+
         if (!jsContext || JS_IsUndefined(exception) || JS_IsNull(exception)) {
             resultStack.push_back(L"unknown:0:0 SyntaxError: unexpected token in expression: ''");
             return resultStack;
@@ -3915,32 +3914,32 @@ namespace cjs {
         if (JS_IsString(stackVal)) {
             const char* stackCStr = JS_ToCString(jsContext, stackVal);
             if (stackCStr && *stackCStr) {
-                // 关键修改1：保留原始空格，不再移除任何空白字符
+
                 stackStr = stackCStr;
 
-                // 关键修改2：以 " at "（前后带空格）作为分隔符，正向拆分（保持原有顺序）
+
                 std::vector<std::string> fragments;
-                const std::string delimiter = " at "; // 带空格的分隔符，避免匹配单词内的at
+                const std::string delimiter = " at ";
                 size_t startPos = 0;
                 size_t delimiterPos = stackStr.find(delimiter, startPos);
 
                 while (delimiterPos != std::string::npos) {
-                    // 截取分隔符前的片段（非空则加入）
+
                     if (delimiterPos > startPos) {
                         std::string frag = stackStr.substr(startPos, delimiterPos - startPos);
-                        // 去除片段首尾的空白（仅清理首尾，保留中间空格）
+
                         frag.erase(0, frag.find_first_not_of(" \t\n\r"));
                         frag.erase(frag.find_last_not_of(" \t\n\r") + 1);
                         if (!frag.empty()) {
                             fragments.push_back(frag);
                         }
                     }
-                    // 移动起始位置到分隔符末尾，继续查找下一个
+
                     startPos = delimiterPos + delimiter.length();
                     delimiterPos = stackStr.find(delimiter, startPos);
                 }
 
-                // 截取最后一个分隔符后的剩余片段（非空则加入）
+
                 if (startPos < stackStr.length()) {
                     std::string frag = stackStr.substr(startPos);
                     frag.erase(0, frag.find_first_not_of(" \t\n\r"));
@@ -3959,7 +3958,7 @@ namespace cjs {
         }
         JS_FreeValue(jsContext, stackVal);
 
-        // 若处理后无内容，补充默认值
+
         if (resultStack.empty()) {
             resultStack.push_back(L"unknown:0:0");
         }
@@ -3968,21 +3967,21 @@ namespace cjs {
     }
 
     std::wstring RemoveSpaceAfterNumber(std::wstring number) {
-        // 1. 查找小数点位置，npos表示无小数点（纯整数，直接返回）
+
         size_t dot_pos = number.find(L'.');
         if (dot_pos == std::wstring::npos) {
             return number;
         }
 
-        // 2. 从末尾向前找第一个非0字符，定位有效数字的最后位置
+
         size_t last_non_zero = number.find_last_not_of(L'0');
 
-        // 3. 核心修复：若最后一个非0字符在小数点前/就是小数点（如123.、123.000、0.）
-        //    直接删除小数点及后续所有字符，得到纯整数（无额外.）
+
+
         if (last_non_zero <= dot_pos) {
             number.erase(dot_pos);
         }
-        // 4. 若最后一个非0字符在小数点后（如123.4500、0.1020），仅删除其后多余0
+
         else {
             number.erase(last_non_zero + 1);
         }
@@ -4016,7 +4015,7 @@ namespace cjs {
         const wchar_t* end = p + value.size();
         bool is_negative = false;
 
-        // 优化：指针遍历跳过前缀无效字符
+
         while (p < end) {
             wchar_t c = *p;
             if (c == L'+' || c == L'-' || isDigit(c)) {
@@ -4028,7 +4027,7 @@ namespace cjs {
             return 0;
         }
 
-        // 处理正负号
+
         wchar_t first_valid_c = *p;
         if (first_valid_c == L'-') {
             is_negative = true;
@@ -4042,7 +4041,7 @@ namespace cjs {
             return 0;
         }
 
-        // 跳过符号后无效字符
+
         while (p < end) {
             if (isDigit(*p)) {
                 break;
@@ -4053,25 +4052,25 @@ namespace cjs {
             return 0;
         }
 
-        // 标记有效数字结束位置
+
         const wchar_t* valid_end = p;
         while (valid_end < end && isDigit(*valid_end)) {
             valid_end++;
         }
 
-        // 使用wcstoll解析
+
         wchar_t* end_ptr = nullptr;
-        errno = 0; // 重置errno
+        errno = 0;
         long long result = wcstoll(p, &end_ptr, 10);
 
-        // 修复点3：统一转为 ptrdiff_t 类型比较
+
         ptrdiff_t parsed_len = end_ptr - p;
         ptrdiff_t valid_len = valid_end - p;
         if (end_ptr == p || parsed_len > valid_len) {
             return 0;
         }
 
-        // 处理越界
+
         if (errno == ERANGE) {
             return is_negative ? LLONG_MIN : LLONG_MAX;
         }
@@ -4086,13 +4085,13 @@ namespace cjs {
         const wchar_t* p = value.c_str();
         const wchar_t* end = p + value.size();
 
-        // 优化：指针遍历跳过前缀无效字符
+
         while (p < end) {
             wchar_t c = *p;
             if (c == L'+') {
                 p++;
             }
-            else if (c == L'-') { // 负号直接返回0
+            else if (c == L'-') {
                 return 0;
             }
             else if (isDigit(c)) {
@@ -4106,7 +4105,7 @@ namespace cjs {
             return 0;
         }
 
-        // 跳过正号后无效字符
+
         while (p < end) {
             if (isDigit(*p)) {
                 break;
@@ -4117,25 +4116,25 @@ namespace cjs {
             return 0;
         }
 
-        // 标记有效数字结束位置
+
         const wchar_t* valid_end = p;
         while (valid_end < end && isDigit(*valid_end)) {
             valid_end++;
         }
 
-        // 使用wcstoull解析
+
         wchar_t* end_ptr = nullptr;
-        errno = 0; // 重置errno
+        errno = 0;
         unsigned long long result = wcstoull(p, &end_ptr, 10);
 
-        // 修复点2：统一转为 ptrdiff_t 类型比较
+
         ptrdiff_t parsed_len = end_ptr - p;
         ptrdiff_t valid_len = valid_end - p;
         if (end_ptr == p || parsed_len > valid_len) {
             return 0;
         }
 
-        // 处理越界
+
         if (result == ULLONG_MAX && errno == ERANGE) {
             return ULLONG_MAX;
         }
@@ -4183,32 +4182,32 @@ namespace cjs {
     std::string GetTextFromBinarySafely(BYTEBUFFER_PTR bp);
 
     std::wstring GetAbsolutePath(std::wstring path, std::wstring base = L"") {
-        // 步骤1：统一路径分隔符为 /（先替换所有反斜杠为正斜杠）
+
         std::replace(path.begin(), path.end(), L'\\', L'/');
         if (!base.empty()) {
             std::replace(base.begin(), base.end(), L'\\', L'/');
         }
 
-        // 步骤2：判断path是否已是绝对路径（Windows下：盘符开头 或 //开头）
+
         auto isAbsolutePath = [](const std::wstring& p) -> bool {
-            // 情况1：盘符 + : 开头（兼容 C:test、C:/test 两种写法）
+
             if (p.size() >= 2 && iswalpha(p[0]) && p[1] == L':') {
                 return true;
             }
-            // 情况2：UNC路径（//server/share）
+
             if (p.size() >= 2 && p[0] == L'/' && p[1] == L'/') {
                 return true;
             }
             return false;
             };
 
-        // 步骤3：如果path是绝对路径，直接处理.和..；否则拼接base后处理
+
         std::wstring fullPath;
         if (isAbsolutePath(path)) {
             fullPath = path;
         }
         else {
-            // 处理base：如果base为空，用当前进程的工作目录
+
             if (base.empty()) {
                 wchar_t cwd[MAX_PATH] = { 0 };
                 GetCurrentDirectoryW(MAX_PATH, cwd);
@@ -4216,44 +4215,44 @@ namespace cjs {
                 std::replace(base.begin(), base.end(), L'\\', L'/');
             }
 
-            // 拼接base和path：确保base末尾有/，避免拼接错误
+
             if (!base.empty() && base.back() != L'/') {
                 base += L'/';
             }
             fullPath = base + path;
         }
 
-        // 步骤4：处理.（当前目录）和..（上级目录），简化路径
-        std::vector<std::wstring> components; // 存储路径片段
-        std::wstring drivePrefix; // 存储盘符前缀（如 E:/）
+
+        std::vector<std::wstring> components;
+        std::wstring drivePrefix;
         size_t start = 0;
 
-        // 先提取盘符前缀（针对Windows路径）
+
         if (fullPath.size() >= 2 && iswalpha(fullPath[0]) && fullPath[1] == L':') {
-            drivePrefix = fullPath.substr(0, 2); // 提取 E:
+            drivePrefix = fullPath.substr(0, 2);
             start = 2;
-            // 如果盘符后紧跟/，跳过/（如 E:/test → start=3）
+
             if (fullPath.size() >= 3 && fullPath[2] == L'/') {
                 start = 3;
             }
         }
-        // 处理UNC路径前缀
+
         else if (fullPath.size() >= 2 && fullPath[0] == L'/' && fullPath[1] == L'/') {
             drivePrefix = L"//";
             start = 2;
         }
 
-        // 拆分路径片段并处理.和..
+
         size_t end = 0;
         while ((end = fullPath.find(L'/', start)) != std::wstring::npos) {
             std::wstring component = fullPath.substr(start, end - start);
             start = end + 1;
 
             if (component.empty() || component == L".") {
-                continue; // 空片段（如//）或.，跳过
+                continue;
             }
             else if (component == L"..") {
-                // ..表示上级目录，若components非空则弹出最后一个
+
                 if (!components.empty()) {
                     components.pop_back();
                 }
@@ -4263,7 +4262,7 @@ namespace cjs {
             }
         }
 
-        // 处理最后一个路径片段
+
         std::wstring lastComponent = fullPath.substr(start);
         if (!lastComponent.empty()) {
             if (lastComponent == L"..") {
@@ -4276,14 +4275,14 @@ namespace cjs {
             }
         }
 
-        // 步骤5：重组简化后的路径
+
         std::wstring result = drivePrefix;
-        // 给盘符添加/（如 E: → E:/）
+
         if (!drivePrefix.empty() && drivePrefix != L"//") {
             result += L'/';
         }
 
-        // 拼接路径片段
+
         for (size_t i = 0; i < components.size(); ++i) {
             if (i > 0) {
                 result += L'/';
@@ -4291,11 +4290,11 @@ namespace cjs {
             result += components[i];
         }
 
-        // 处理空结果（如路径简化后为根目录）
+
         if (result.empty() || (drivePrefix.empty() && components.empty())) {
             result = L"/";
         }
-        // 处理仅盘符的情况（如 E:/ → 保留 E:/）
+
         else if (result == drivePrefix) {
             result += L'/';
         }
@@ -4972,25 +4971,25 @@ namespace cjs {
     }
 
     enum filesystem_open_mode : int {
-        FILE_MODE_NONE = 0x00,  // 无模式（异常返回值）
-        FILE_MODE_READ = 0x01,  // 只读 r (2^0)
-        FILE_MODE_WRITE = 0x02,  // 只写 w (2^1)
-        FILE_MODE_APPEND = 0x04,  // 追加 a (2^2)
-        FILE_MODE_BIN = 0x08,  // 二进制 b (2^3)
-        FILE_MODE_RDWR = 0x10   // 读写扩展 + (2^4)
+        FILE_MODE_NONE = 0x00,
+        FILE_MODE_READ = 0x01,
+        FILE_MODE_WRITE = 0x02,
+        FILE_MODE_APPEND = 0x04,
+        FILE_MODE_BIN = 0x08,
+        FILE_MODE_RDWR = 0x10
     };
 
     int GetFileControllerMode(std::string mode) {
-        // 步骤1：统一转小写，兼容RB/R+/Wb+/+ab等大小写/顺序混合写法
+
         std::transform(mode.begin(), mode.end(), mode.begin(),
             [](unsigned char c) { return std::tolower(c); });
 
-        // 步骤2：初始化模式为无，用于位运算组合（原生enum直接赋值，无转换）
+
         int file_mode = FILE_MODE_NONE;
-        // 核心模式计数器：r/w/a 必须且仅能存在1个，否则为非法
+
         int core_mode_cnt = 0;
 
-        // 步骤3：逐字符解析，直接位或（|=）组合模式，支持任意字符顺序
+
         for (char c : mode) {
             switch (c) {
             case 'r':
@@ -5012,17 +5011,17 @@ namespace cjs {
                 file_mode |= FILE_MODE_RDWR;
                 break;
             default:
-                // 包含非法字符（如x/1/-/.等），直接返回0
+
                 return 0;
             }
         }
 
-        // 步骤4：严格合法性校验（拦截所有非法场景）
+
         if (mode.empty() || core_mode_cnt != 1) {
-            return 0; // 空字符串/无核心模式/多个核心模式（如rw/ra/war），均非法
+            return 0;
         }
 
-        // 步骤5：合法模式返回位运算组合值，天然非0（1~INT_MAX）
+
         return file_mode;
     }
 
@@ -5039,10 +5038,10 @@ namespace cjs {
         int wchar_len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8_data, utf8_len, nullptr, 0);
         if (wchar_len == 0)
         {
-            // 获取错误码，便于调试（生产环境可根据需要记录日志）
+
             DWORD error = GetLastError();
-            // 常见错误：ERROR_NO_UNICODE_TRANSLATION（无效UTF-8字符）
-            // 即使转换失败，也返回空字符串保证函数稳定性
+
+
             return L"";
         }
 
@@ -5057,75 +5056,75 @@ namespace cjs {
         return result;
     }
     std::wstring GetMIMETypeFromBYTEBUFFER(BYTEBUFFER_PTR byteBuffer) {
-        // 空指针或空缓冲区，返回默认二进制类型
+
         if (!byteBuffer || byteBuffer->empty()) {
             return L"application/octet-stream";
         }
 
-        // 取缓冲区数据，改为unsigned char避免冗余转换，提升安全性
+
         const unsigned char* data = byteBuffer->data();
         size_t dataSize = byteBuffer->size();
 
-        // 辅助函数：快速比较文件头（兼容任意长度的头信息，自动判断缓冲区大小）
+
         auto compareHeader = [&](const unsigned char* header, size_t headerLen) -> bool {
             if (dataSize < headerLen || header == nullptr) return false;
             return std::memcmp(data, header, headerLen) == 0;
             };
 
-        // 辅助函数：比较指定偏移量的文件头
+
         auto compareHeaderAtOffset = [&](size_t offset, const unsigned char* header, size_t headerLen) -> bool {
             if (dataSize < offset + headerLen || header == nullptr) return false;
             return std::memcmp(data + offset, header, headerLen) == 0;
             };
 
-        // 辅助函数：判断是否为有效的UTF-8编码
+
         auto isUtf8Text = [&]() -> bool {
             size_t i = 0;
             while (i < dataSize) {
                 unsigned char c = data[i];
                 if ((c & 0x80) == 0) {
-                    // 单字节：0xxxxxxx，允许ASCII可见字符和常见控制字符
-                    if (c < 0x09) return false; // 排除除制表符外的控制字符
-                    if (c == 0x0B || c == 0x0C) return false; // 排除垂直制表符、换页符
-                    if (c >= 0x0E && c <= 0x1F) return false; // 排除其他控制字符
-                    if (c == 0x7F) return false; // 排除DEL字符
+
+                    if (c < 0x09) return false;
+                    if (c == 0x0B || c == 0x0C) return false;
+                    if (c >= 0x0E && c <= 0x1F) return false;
+                    if (c == 0x7F) return false;
                     i++;
                 }
                 else if ((c & 0xE0) == 0xC0) {
-                    // 双字节：110xxxxx 10xxxxxx
+
                     if (i + 1 >= dataSize) return false;
                     if ((data[i + 1] & 0xC0) != 0x80) return false;
-                    // 排除无效的UTF-8范围（如overlong编码）
+
                     if (c < 0xC2) return false;
                     i += 2;
                 }
                 else if ((c & 0xF0) == 0xE0) {
-                    // 三字节：1110xxxx 10xxxxxx 10xxxxxx（中文字符主要在此范围）
+
                     if (i + 2 >= dataSize) return false;
                     if ((data[i + 1] & 0xC0) != 0x80 || (data[i + 2] & 0xC0) != 0x80) return false;
                     i += 3;
                 }
                 else if ((c & 0xF8) == 0xF0) {
-                    // 四字节：11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+
                     if (i + 3 >= dataSize) return false;
                     if ((data[i + 1] & 0xC0) != 0x80 || (data[i + 2] & 0xC0) != 0x80 || (data[i + 3] & 0xC0) != 0x80) return false;
                     if (c > 0xF4) return false;
                     i += 4;
                 }
                 else {
-                    // 无效的UTF-8起始字节
+
                     return false;
                 }
             }
             return true;
             };
 
-        // 辅助函数：判断是否为ASCII文本（兼容原逻辑，但放宽部分限制）
+
         auto isAsciiText = [&]() -> bool {
             size_t checkSize = std::min(dataSize, (size_t)1024);
             for (size_t i = 0; i < checkSize; ++i) {
                 unsigned char c = data[i];
-                // 允许ASCII可见字符、换行、回车、制表符、退格
+
                 if (!((c >= 32 && c <= 126) || c == '\n' || c == '\r' || c == '\t' || c == '\b')) {
                     return false;
                 }
@@ -5133,29 +5132,29 @@ namespace cjs {
             return true;
             };
 
-        // -------------------------- 1. 优先判断文本类型 --------------------------
+
         bool isText = false;
         bool isUtf8 = false;
 
-        // 先检测是否为UTF-8文本（含中文）
+
         if (dataSize >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF) {
-            // UTF-8 BOM，直接判定为UTF-8文本
+
             isText = true;
             isUtf8 = true;
         }
         else if (isUtf8Text()) {
-            // 无BOM但有效UTF-8编码
+
             isText = true;
             isUtf8 = true;
         }
         else if (isAsciiText()) {
-            // ASCII文本
+
             isText = true;
             isUtf8 = false;
         }
 
         if (isText) {
-            // 读取前缀用于细分文本类型（使用string_view避免拷贝）
+
             auto getPrefix = [&](size_t len) -> std::string_view {
                 return std::string_view(reinterpret_cast<const char*>(data), std::min(dataSize, len));
                 };
@@ -5168,7 +5167,7 @@ namespace cjs {
             std::string_view prefix6 = getPrefix(6);
             std::string_view prefix10 = getPrefix(10);
 
-            // 标记语言/结构化文本
+
             if (prefix5 == "<!DOC" || prefix5 == "<html" || prefix5 == "<HTML")
                 return L"text/html";
             else if (prefix5 == "<?xml" || prefix5 == "<root" || prefix5 == "<ROOT")
@@ -5178,13 +5177,13 @@ namespace cjs {
             else if (prefix6 == "<!DOCTYPE" || prefix5 == "<math")
                 return L"application/xhtml+xml";
 
-            // 样式表文件
+
             if (prefix2 == "/*" || prefix4 == "body" || prefix4 == "html" || prefix5 == "style")
                 return L"text/css";
             else if (prefix4 == "@import" || prefix5 == "@media")
                 return L"text/scss";
 
-            // 脚本/代码文件
+
             if (prefix2 == "//" || prefix3 == "var " || prefix3 == "let " || prefix5 == "const")
                 return L"text/javascript";
             else if (prefix5 == "type " || prefix4 == "interface")
@@ -5208,7 +5207,7 @@ namespace cjs {
             else if (prefix4 == "<?lua")
                 return L"text/x-lua";
 
-            // 配置文件
+
             if (prefix2 == "# " || prefix2 == "//" || prefix4 == "[main" || prefix4 == "[env")
                 return L"text/x-ini";
             else if (prefix1 == "{" || prefix1 == "[" || prefix2 == "{\"" || prefix2 == "[\"")
@@ -5220,7 +5219,7 @@ namespace cjs {
             else if (prefix2 == "/*" || prefix4 == "user " || prefix5 == "pass ")
                 return L"text/x-conf";
 
-            // 标记/文档文件
+
             if (prefix2 == "# " || prefix2 == "* " || prefix2 == "- " || prefix4 == "## ")
                 return L"text/markdown";
             else if (prefix2 == "=" || prefix2 == "-" || prefix4 == "----")
@@ -5228,7 +5227,7 @@ namespace cjs {
             else if (prefix4 == ".TH " || prefix2 == ".SH")
                 return L"text/troff";
 
-            // 数据文件
+
             if (prefix2 == "id," || prefix2 == "name" || prefix4 == "col1,")
                 return L"text/csv";
             else if (prefix4 == "tsv\t" || prefix2 == "id\t")
@@ -5236,19 +5235,19 @@ namespace cjs {
             else if (prefix2 == "; " || prefix4 == ";ID," || prefix5 == ";Name")
                 return L"text/x-lua";
 
-            // 日志/文本文件
+
             if (prefix4 == "INFO" || prefix4 == "ERROR" || prefix4 == "WARN " || prefix5 == "DEBUG")
                 return L"text/x-log";
             else if (prefix2 == "-- " || prefix2 == "/* " || prefix4 == "NOTE ")
                 return L"text/plain";
 
-            // 所有文本类型都不匹配时，返回text/plain（根据编码返回对应charset）
+
             return isUtf8 ? L"text/plain; charset=UTF-8" : L"text/plain";
         }
 
-        // -------------------------- 2. 再判断二进制类型 --------------------------
 
-        // 图片类型
+
+
         if (dataSize >= 2 && data[0] == 0xFF && data[1] == 0xD8)
             return L"image/jpeg";
         const unsigned char PNG_HEADER[] = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
@@ -5283,7 +5282,7 @@ namespace cjs {
         if (compareHeader(TGA_HEADER1, sizeof(TGA_HEADER1)) || compareHeader(TGA_HEADER2, sizeof(TGA_HEADER2)))
             return L"image/tga";
 
-        // 文档类型
+
         const unsigned char PDF_HEADER[] = { 0x25, 0x50, 0x44, 0x46 };
         if (compareHeader(PDF_HEADER, sizeof(PDF_HEADER)))
             return L"application/pdf";
@@ -5327,7 +5326,7 @@ namespace cjs {
         if (compareHeader(WPS_HEADER, sizeof(WPS_HEADER)) && dataSize >= 512 && std::string_view(reinterpret_cast<const char*>(data + 512), 3) == "WPS")
             return L"application/vnd.ms-wps";
 
-        // 压缩/归档类型
+
         const unsigned char ZIP_HEADER1[] = { 0x50, 0x4B, 0x03, 0x04 };
         const unsigned char ZIP_HEADER2[] = { 0x50, 0x4B, 0x05, 0x06 };
         const unsigned char ZIP_HEADER3[] = { 0x50, 0x4B, 0x07, 0x08 };
@@ -5374,7 +5373,7 @@ namespace cjs {
         if (compareHeader(DMG_HEADER, sizeof(DMG_HEADER)))
             return L"application/x-apple-diskimage";
 
-        // 音频类型
+
         const unsigned char MP3_HEADER1[] = { 0xFF, 0xFB };
         const unsigned char MP3_HEADER2[] = { 0xFF, 0xF3 };
         const unsigned char MP3_HEADER3[] = { 0xFF, 0xF2 };
@@ -5415,7 +5414,7 @@ namespace cjs {
         if (compareHeader(APE_HEADER, sizeof(APE_HEADER)))
             return L"audio/ape";
 
-        // 视频类型
+
         if (dataSize >= 12 && data[4] == 0x66 && data[5] == 0x74 && data[6] == 0x79 && data[7] == 0x70)
         {
             std::string_view ftyp(reinterpret_cast<const char*>(data + 4), 4);
@@ -5462,7 +5461,7 @@ namespace cjs {
         if (compareHeader(MOV_HEADER, sizeof(MOV_HEADER)))
             return L"video/quicktime";
 
-        // 字体文件类型
+
         const unsigned char TTF_HEADER[] = { 0x00, 0x01, 0x00, 0x00, 0x00 };
         if (compareHeader(TTF_HEADER, sizeof(TTF_HEADER)))
             return L"font/ttf";
@@ -5485,78 +5484,78 @@ namespace cjs {
         if (compareHeader(TTC_HEADER, sizeof(TTC_HEADER)))
             return L"font/collection";
 
-        // 新增可执行/脚本格式
-        const unsigned char ELF_HEADER[] = { 0x7F, 0x45, 0x4C, 0x46 }; // ELF可执行文件（Linux/Unix）
+
+        const unsigned char ELF_HEADER[] = { 0x7F, 0x45, 0x4C, 0x46 };
         if (compareHeader(ELF_HEADER, sizeof(ELF_HEADER)))
             return L"application/x-executable";
-        const unsigned char MACHO_HEADER1[] = { 0xCA, 0xFE, 0xBA, 0xBE }; // Mach-O可执行文件（Mac/iOS）
+        const unsigned char MACHO_HEADER1[] = { 0xCA, 0xFE, 0xBA, 0xBE };
         const unsigned char MACHO_HEADER2[] = { 0xBE, 0xBA, 0xFE, 0xCA };
         if (compareHeader(MACHO_HEADER1, sizeof(MACHO_HEADER1)) || compareHeader(MACHO_HEADER2, sizeof(MACHO_HEADER2)))
             return L"application/x-mach-binary";
-        const unsigned char COM_HEADER[] = { 0x43, 0x4F, 0x4D }; // COM可执行文件（DOS）
+        const unsigned char COM_HEADER[] = { 0x43, 0x4F, 0x4D };
         if (compareHeader(COM_HEADER, sizeof(COM_HEADER)))
             return L"application/x-dosexec";
-        if (dataSize >= 2 && std::string(reinterpret_cast<const char*>(data), 2) == "::") // PowerShell脚本
+        if (dataSize >= 2 && std::string(reinterpret_cast<const char*>(data), 2) == "::")
             return L"application/x-powershell";
-        if (dataSize >= 4 && std::string(reinterpret_cast<const char*>(data), 4) == "<?lua") // Lua脚本
+        if (dataSize >= 4 && std::string(reinterpret_cast<const char*>(data), 4) == "<?lua")
             return L"text/x-lua";
 
-        // 9. 数据库文件（新增：主流数据库格式）
-        const unsigned char SQLITE_HEADER[] = { 0x53, 0x51, 0x4C, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6F, 0x72, 0x6D, 0x61, 0x74, 0x20, 0x33, 0x00 }; // SQLite数据库
+
+        const unsigned char SQLITE_HEADER[] = { 0x53, 0x51, 0x4C, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6F, 0x72, 0x6D, 0x61, 0x74, 0x20, 0x33, 0x00 };
         if (compareHeader(SQLITE_HEADER, sizeof(SQLITE_HEADER)))
             return L"application/x-sqlite3";
-        const unsigned char ACCESS_HEADER[] = { 0x53, 0x74, 0x61, 0x6E, 0x64, 0x61, 0x72, 0x64, 0x20, 0x41, 0x43, 0x45, 0x20, 0x44, 0x42 }; // Access数据库
+        const unsigned char ACCESS_HEADER[] = { 0x53, 0x74, 0x61, 0x6E, 0x64, 0x61, 0x72, 0x64, 0x20, 0x41, 0x43, 0x45, 0x20, 0x44, 0x42 };
         if (compareHeader(ACCESS_HEADER, sizeof(ACCESS_HEADER)))
             return L"application/vnd.ms-access";
-        const unsigned char MYSQL_HEADER[] = { 0x3D, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00 }; // MySQL数据库备份
+        const unsigned char MYSQL_HEADER[] = { 0x3D, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00 };
         if (compareHeader(MYSQL_HEADER, sizeof(MYSQL_HEADER)))
             return L"application/x-mysql";
-        const unsigned char PGSQL_HEADER[] = { 0x50, 0x47, 0x53, 0x51, 0x4C }; // PostgreSQL备份
+        const unsigned char PGSQL_HEADER[] = { 0x50, 0x47, 0x53, 0x51, 0x4C };
         if (compareHeader(PGSQL_HEADER, sizeof(PGSQL_HEADER)))
             return L"application/x-pgsql";
 
-        // 10. 3D模型文件（新增：主流3D格式）
-        const unsigned char OBJ_HEADER[] = { 0x6F, 0x62, 0x6A }; // OBJ模型
+
+        const unsigned char OBJ_HEADER[] = { 0x6F, 0x62, 0x6A };
         if (compareHeader(OBJ_HEADER, sizeof(OBJ_HEADER)))
             return L"model/obj";
-        const unsigned char FBX_HEADER[] = { 0x4B, 0x61, 0x79, 0x64, 0x61, 0x20, 0x46, 0x42, 0x58 }; // FBX模型
+        const unsigned char FBX_HEADER[] = { 0x4B, 0x61, 0x79, 0x64, 0x61, 0x20, 0x46, 0x42, 0x58 };
         if (compareHeader(FBX_HEADER, sizeof(FBX_HEADER)))
             return L"model/fbx";
-        const unsigned char STL_HEADER[] = { 0x73, 0x74, 0x6C, 0x61 }; // STL模型
+        const unsigned char STL_HEADER[] = { 0x73, 0x74, 0x6C, 0x61 };
         if (compareHeader(STL_HEADER, sizeof(STL_HEADER)))
             return L"model/stl";
-        const unsigned char GLB_HEADER[] = { 0x67, 0x6C, 0x54, 0x46 }; // GLB模型（glTF二进制）
+        const unsigned char GLB_HEADER[] = { 0x67, 0x6C, 0x54, 0x46 };
         if (compareHeader(GLB_HEADER, sizeof(GLB_HEADER)))
             return L"model/gltf-binary";
 
-        // 11. 加密/证书文件（新增：安全相关格式）
-        const unsigned char PEM_HEADER[] = { 0x2D, 0x2D, 0x2D, 0x2D, 0x2D }; // PEM证书/密钥
+
+        const unsigned char PEM_HEADER[] = { 0x2D, 0x2D, 0x2D, 0x2D, 0x2D };
         if (compareHeader(PEM_HEADER, sizeof(PEM_HEADER)))
             return L"application/x-pem-file";
-        const unsigned char DER_HEADER[] = { 0x30, 0x82 }; // DER证书
+        const unsigned char DER_HEADER[] = { 0x30, 0x82 };
         if (compareHeader(DER_HEADER, sizeof(DER_HEADER)))
             return L"application/x-der";
-        const unsigned char GPG_HEADER[] = { 0x85, 0x01, 0x02, 0x00 }; // GPG加密文件
+        const unsigned char GPG_HEADER[] = { 0x85, 0x01, 0x02, 0x00 };
         if (compareHeader(GPG_HEADER, sizeof(GPG_HEADER)))
             return L"application/gpg-encrypted";
-        const unsigned char PKCS12_HEADER[] = { 0x30, 0x82, 0x00, 0x00 }; // PKCS12证书库
+        const unsigned char PKCS12_HEADER[] = { 0x30, 0x82, 0x00, 0x00 };
         if (compareHeader(PKCS12_HEADER, sizeof(PKCS12_HEADER)))
             return L"application/x-pkcs12";
 
-        // 未知类型，返回默认二进制MIME
+
         return L"application/octet-stream";
     }
 
     const char* const codingMaps[] = {
-        "0123456789ABCDEF",                              // 16
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567",              // 32
-        "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz", // 58
-        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", // 62
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", // 64
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_", // 64url
-        "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstu", //85
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~\"", //91
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~-"  //91url
+        "0123456789ABCDEF",
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567",
+        "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz",
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",
+        "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstu",
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~\"",
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~-"
     };
     enum MapIdx { BASE16 = 0, BASE32 = 1, BASE58 = 2, BASE62 = 3, BASE64 = 4, BASE64URL = 5, BASE85 = 6, BASE91 = 7, BASE91URL = 8 };
     bool BaseXToBinary(BYTEBUFFER_PTR binaryPtr, uint64_t base, bool isUrl) {
@@ -5629,15 +5628,106 @@ namespace cjs {
             if (c == '=') padding++;
             else cleanInput.push_back(c);
         }
-        bool isUrlMode = isUrl && (base == 64 || base == 32);
-        size_t padCount = 0;
-        if (isUrlMode) {
-            padding = 0;
-            size_t mod = (base == 64) ? 4 : 8;
-            padCount = (mod - (cleanInput.size() % mod)) % mod;
+
+        if (base == 64) {
+            std::vector<int> vals;
+            vals.reserve(cleanInput.size());
+            for (unsigned char c : cleanInput) {
+                int v = -1;
+                for (size_t i = 0; i < 64; i++) {
+                    if (codingMap[i] == c) {
+                        v = (int)i;
+                        break;
+                    }
+                }
+                if (v == -1) return false;
+                vals.push_back(v);
+            }
+            size_t pad = padding;
+            if (isUrl) {
+                pad = (4 - vals.size() % 4) % 4;
+            }
+            size_t total = vals.size();
+            for (size_t i = 0; i + 3 < total; i += 4) {
+                uint32_t pack = (vals[i] << 18) | (vals[i + 1] << 12) | (vals[i + 2] << 6) | vals[i + 3];
+                result.push_back((pack >> 16) & 0xFF);
+                result.push_back((pack >> 8) & 0xFF);
+                result.push_back(pack & 0xFF);
+            }
+            size_t rem = total % 4;
+            if (rem == 1) return false;
+            uint32_t pack = 0;
+            for (size_t i = 0; i < rem; i++) {
+                pack = (pack << 6) | vals[total - rem + i];
+            }
+            if (rem == 2) {
+                result.push_back((pack >> 4) & 0xFF);
+            }
+            else if (rem == 3) {
+                result.push_back((pack >> 10) & 0xFF);
+                result.push_back((pack >> 2) & 0xFF);
+            }
+            *binaryPtr = std::move(result);
+            return true;
         }
-        else if ((base == 64 && padding > 2) || (base == 32 && padding > 6) || (base == 16 && padding > 0)) {
-            return false;
+
+        if (base == 16) {
+            if (padding != 0) return false;
+            uint8_t cur = 0;
+            bool high = true;
+            for (unsigned char c : cleanInput) {
+                int v = -1;
+                for (size_t i = 0; i < 16; i++) {
+                    if (codingMap[i] == c) {
+                        v = (int)i;
+                        break;
+                    }
+                }
+                if (v == -1) return false;
+                if (high) {
+                    cur = v << 4;
+                    high = false;
+                }
+                else {
+                    cur |= v;
+                    result.push_back(cur);
+                    high = true;
+                }
+            }
+            if (!high) return false;
+            *binaryPtr = std::move(result);
+            return true;
+        }
+
+        if (base == 32) {
+            std::vector<int> vals;
+            vals.reserve(cleanInput.size());
+            for (unsigned char c : cleanInput) {
+                int v = -1;
+                for (size_t i = 0; i < 32; i++) {
+                    if (codingMap[i] == c) {
+                        v = (int)i;
+                        break;
+                    }
+                }
+                if (v == -1) return false;
+                vals.push_back(v);
+            }
+            size_t pad = padding;
+            if (isUrl) pad = (8 - vals.size() % 8) % 8;
+            size_t i = 0;
+            uint32_t acc = 0;
+            int bits = 0;
+            while (i < vals.size()) {
+                acc = (acc << 5) | vals[i++];
+                bits += 5;
+                while (bits >= 8) {
+                    bits -= 8;
+                    result.push_back((acc >> bits) & 0xFF);
+                }
+            }
+            *binaryPtr = std::move(result);
+            return true;
         }
 
         std::vector<uint64_t> num(1, 0);
@@ -5671,13 +5761,6 @@ namespace cjs {
 
         std::reverse(result.begin(), result.end());
         if (result.empty() && !cleanInput.empty()) result.push_back(0);
-
-        if (base == 64 || base == 32) {
-            size_t totalBits = cleanInput.size() * (base == 64 ? 6 : 5);
-            totalBits -= padCount * (base == 64 ? 6 : 5);
-            size_t expectedBytes = totalBits / 8;
-            if (result.size() > expectedBytes) result.resize(expectedBytes);
-        }
 
         *binaryPtr = std::move(result);
         return true;
@@ -5787,23 +5870,23 @@ namespace cjs {
     std::wstring GetFileNameFromPath(std::wstring path) {
         if (path.empty()) return L"";
 
-        // 移除末尾的路径分隔符
+
         while (!path.empty() && (path.back() == L'/' || path.back() == L'\\')) {
             path.pop_back();
         }
         if (path.empty()) return L"";
 
-        // 找到最后一个路径分隔符的位置
+
         size_t lastSlash = path.find_last_of(L"/\\");
         if (lastSlash == std::wstring::npos) {
-            // 没有路径分隔符，整个就是文件名
+
             return path;
         }
 
-        // 提取最后一个路径分隔符之后的部分
+
         std::wstring filename = path.substr(lastSlash + 1);
 
-        // 如果提取到的部分为空，返回空字符串
+
         if (filename.empty()) return L"";
 
         return filename;
@@ -5811,27 +5894,27 @@ namespace cjs {
     std::wstring GetFilePathWithoutName(std::wstring path) {
         if (path.empty()) return L"";
 
-        // 第一步：将所有反斜杠 \ 替换为正斜杠 /，统一路径分隔符
+
         for (size_t i = 0; i < path.size(); ++i) {
             if (path[i] == L'\\') {
                 path[i] = L'/';
             }
         }
 
-        // 第二步：移除末尾的所有路径分隔符（此时只剩正斜杠）
+
         while (!path.empty() && path.back() == L'/') {
             path.pop_back();
         }
         if (path.empty()) return L"";
 
-        // 第三步：找到最后一个路径分隔符的位置
+
         size_t lastSlash = path.find_last_of(L'/');
         if (lastSlash == std::wstring::npos) {
-            // 没有路径分隔符，说明只有文件名没有路径，返回空字符串
+
             return L"";
         }
 
-        // 第四步：提取最后一个路径分隔符及之前的部分，并确保末尾带正斜杠
+
         std::wstring dirPath = path.substr(0, lastSlash + 1);
 
         return dirPath;
@@ -5916,7 +5999,7 @@ namespace cjs {
     }
     template<typename T>
     bool IsInstance(T* ptr) {
-        // 1. 空指针/0xdd标记指针直接判无效
+
         if (ptr == nullptr) return false;
 
 #ifdef _WIN64
@@ -5927,17 +6010,17 @@ namespace cjs {
         if (ptr_val == 0xdddddddd) return false;
 #endif
 
-        // 2. 仅支持类类型
+
         static_assert(std::is_class_v<T>, "IsInstance only supports class types!");
 
-        // 3. 核心校验：
-        // - _CrtIsMemoryBlock 是唯一能判定「地址是否已释放」的公开接口
-        //   只要返回false，说明地址已释放/不属于有效堆块（无论指针值是不是原地址）
+
+
+
         if (!_CrtIsMemoryBlock(ptr, sizeof(T), nullptr, nullptr, nullptr)) {
             return false;
         }
 
-        // 4. 兜底：堆指针合法性+内存可访问性校验
+
         return _CrtIsValidHeapPointer(ptr) && _CrtIsValidPointer(ptr, sizeof(T), true);
     }
     void AdvSleep(double timeout) {
@@ -6225,13 +6308,13 @@ namespace cjs {
             if (jsvi == nullptr) return JS_UNDEFINED;
             if (dupRef > 0) {
                 for (long long i = 0; i < dupRef; i++) {
-                    //扒开底层代码发现这个函数单纯新增了u.ptr的引用计数，返回和入参为相同JSValue
+
                     if (ctx != nullptr && !JS_IsUndefined((jsvi->get())) && !JS_IsNull((jsvi->get()))) JS_DupValue(ctx, (jsvi->get()));
                 }
             }
             else if (dupRef < 0) {
                 for (long long i = 0; i < -dupRef; i++) {
-                    //扒开底层代码发现这个函数单纯减少了u.ptr的引用计数，直到减少到0才释放
+
                     if (ctx != nullptr && !JS_IsUndefined((jsvi->get())) && !JS_IsNull((jsvi->get()))) JS_FreeValue(ctx, (jsvi->get()));
                 }
             }
@@ -6241,13 +6324,13 @@ namespace cjs {
             if (jsvi == nullptr) return *this;
             if (dupRef > 0) {
                 for (long long i = 0; i < dupRef; i++) {
-                    //扒开底层代码发现这个函数单纯新增了u.ptr的引用计数，返回和入参为相同JSValue
+
                     if (ctx != nullptr) JS_DupValue(ctx, (jsvi->get()));
                 }
             }
             else if (dupRef < 0) {
                 for (long long i = 0; i < -dupRef; i++) {
-                    //扒开底层代码发现这个函数单纯减少了u.ptr的引用计数，直到减少到0才释放
+
                     if (ctx != nullptr) JS_FreeValue(ctx, (jsvi->get()));
                 }
             }
@@ -7464,7 +7547,7 @@ namespace cjs {
     }
 
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedGenerateAlgorithm = {
-        // -------------------------- AES 对称加密算法（密钥生成） --------------------------
+
         {"AES-GCM", {
             {"name", ""},
             {"length", ""}
@@ -7481,17 +7564,17 @@ namespace cjs {
             {"name", ""},
             {"length", ""}
         }},
-        // 新增：ChaCha20-Poly1305（密钥生成）
+
         {"ChaCha20-Poly1305", {
-            {"name", ""}  // 仅需name参数，密钥长度固定256位
+            {"name", ""}
         }},
 
-        // -------------------------- RSA 非对称算法（密钥生成） --------------------------
+
         {"RSA-OAEP", {
-            {"name", ""},                  // 必需：算法名称
-            {"modulusLength", ""},         // 必需：模数长度（2048/4096）
-            {"publicExponent", ""},        // 必需：公钥指数（通常为65537）
-            {"hash", ""}                   // 必需：哈希算法
+            {"name", ""},
+            {"modulusLength", ""},
+            {"publicExponent", ""},
+            {"hash", ""}
         }},
         {"RSA-PSS", {
             {"name", ""},
@@ -7506,11 +7589,11 @@ namespace cjs {
             {"hash", ""}
         }},
 
-        // -------------------------- 椭圆曲线算法（密钥生成） --------------------------
+
         {"ECDSA", {
-            {"name", ""},                  // 必需：算法名称
-            {"namedCurve", ""},            // 必需：曲线名称（P-256/P-384/P-521）
-            {"hash", "a"}                   // 必需：哈希算法（ECDSA生成密钥需指定）
+            {"name", ""},
+            {"namedCurve", ""},
+            {"hash", "a"}
         }},
         {"ECDH", {
             {"name", ""},
@@ -7523,20 +7606,20 @@ namespace cjs {
             {"name", ""}
         }},
 
-        // -------------------------- HMAC 算法（密钥生成） --------------------------
+
         {"HMAC", {
-            {"name", ""},                  // 必需：算法名称
-            {"hash", ""},                  // 必需：哈希算法
-            {"length", "a"}                // 可选：length（HMAC密钥长度），值为'a'
+            {"name", ""},
+            {"hash", ""},
+            {"length", "a"}
         }}
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<std::string, std::string>>> allowedImportAlgorithm = {
-        // -------------------------- raw 格式（二进制原始数据） --------------------------
+
         {"raw", {
-            // AES 对称密钥（raw格式）
+
             {"AES-GCM", {
-                {"name", ""},          // 必需：算法名称
-                {"length", ""}         // 必需：密钥长度（验证与密钥数据长度匹配）
+                {"name", ""},
+                {"length", ""}
             }},
             {"AES-CBC", {
                 {"name", ""},
@@ -7550,99 +7633,40 @@ namespace cjs {
                 {"name", ""},
                 {"length", ""}
             }},
-        // ChaCha20-Poly1305（raw格式）
+
         {"ChaCha20-Poly1305", {
-            {"name", ""}  // 仅需name，密钥长度固定256位无需验证
+            {"name", ""}
         }},
-        // HMAC 密钥（raw格式）
+
         {"HMAC", {
-            {"name", ""},          // 必需：算法名称
-            {"hash", ""},          // 必需：哈希算法
-            {"length", "a"}        // 可选：HMAC密钥长度，值为'a'
+            {"name", ""},
+            {"hash", ""},
+            {"length", "a"}
         }},
-        // HKDF（raw格式）- 核心配置
+
         {"HKDF", {
-            {"name", ""},          // 必需：算法名称（固定为HKDF）
-            {"hash", ""},          // 必需：哈希算法（如SHA-256、SHA-512）
-            {"salt", "a"},         // 可选：盐值，值为'a'（替换原o）
-            {"info", "a"}          // 可选：上下文信息，值为'a'（替换原o）
+            {"name", ""},
+            {"hash", ""},
+            {"salt", "a"},
+            {"info", "a"}
         }},
-        // 新增：PBKDF2（raw格式）
+
         {"PBKDF2", {
-            {"name", ""},          // 必需：算法名称
-            {"hash", ""},          // 必需：哈希算法
-            {"salt", ""},          // 必需：盐值（PBKDF2必需）
-            {"iterations", ""},    // 必需：迭代次数
-            {"length", "a"},       // 可选：派生密钥长度，值为'a'
-            {"info", "a"}          // 可选：上下文信息，值为'a'
+            {"name", ""},
+            {"hash", ""},
+            {"salt", ""},
+            {"iterations", ""},
+            {"length", "a"},
+            {"info", "a"}
         }}
     }},
 
-        // -------------------------- pkcs8 格式（私钥，ASN.1编码） --------------------------
+
         {"pkcs8", {
-            // RSA 私钥（PKCS#8格式）
-            {"RSA-OAEP", {
-                {"name", ""},                  // 必需：算法名称
-                {"hash", ""}                   // 必需：哈希算法
-            }},
-            {"RSA-PSS", {
-                {"name", ""},
-                {"hash", ""}                   // 必需：哈希算法
-            }},
-            {"RSASSA-PKCS1-v1_5", {
-                {"name", ""},
-                {"hash", ""}                   // 必需：哈希算法
-            }},
-        // 椭圆曲线私钥（PKCS#8格式）
-        {"ECDSA", {
-            {"name", ""},                  // 必需：算法名称
-            {"namedCurve", ""},            // 必需：曲线名称
-            {"hash", ""}                   // 必需（ECDSA导入需指定hash）
-        }},
-        {"ECDH", {
-            {"name", ""},
-            {"namedCurve", ""}             // 必需：曲线名称
-        }},
-        // 现代椭圆曲线私钥（PKCS#8格式）
-        {"Ed25519", {
-            {"name", ""}                   // 仅需name，曲线固定
-        }},
-        {"X25519", {
-            {"name", ""}                   // 仅需name，曲线固定
-        }},
-        // AES 私钥（极少场景）
-        {"AES-GCM", {
-            {"name", ""},
-            {"length", ""}                 // 必需：密钥长度
-        }},
-        // ChaCha20-Poly1305私钥（PKCS#8格式）
-        {"ChaCha20-Poly1305", {
-            {"name", ""}  // 仅需name，密钥长度固定
-        }},
-        // HKDF（PKCS#8格式）- 通常用于基于私钥的密钥派生
-        {"HKDF", {
-            {"name", ""},                  // 必需：算法名称
-            {"hash", ""},                  // 必需：哈希算法
-            {"salt", "a"},                 // 可选：盐值，值为'a'
-            {"info", "a"}                  // 可选：上下文信息，值为'a'
-        }},
-        // 新增：PBKDF2（PKCS#8格式）- 基于私钥的密码派生
-        {"PBKDF2", {
-            {"name", ""},                  // 必需：算法名称
-            {"hash", ""},                  // 必需：哈希算法
-            {"salt", ""},                  // 必需：盐值
-            {"iterations", ""},            // 必需：迭代次数
-            {"length", "a"},               // 可选：派生密钥长度，值为'a'
-            {"info", "a"}                  // 可选：上下文信息，值为'a'
-        }}
-    }},
 
-        // -------------------------- spki 格式（公钥，ASN.1编码） --------------------------
-        {"spki", {
-            // RSA 公钥（SPKI格式）
             {"RSA-OAEP", {
                 {"name", ""},
-                {"hash", ""}                   // 必需：哈希算法
+                {"hash", ""}
             }},
             {"RSA-PSS", {
                 {"name", ""},
@@ -7652,48 +7676,107 @@ namespace cjs {
                 {"name", ""},
                 {"hash", ""}
             }},
-        // 椭圆曲线公钥（SPKI格式）
+
         {"ECDSA", {
             {"name", ""},
-            {"namedCurve", ""},            // 必需：曲线名称
-            {"hash", ""}                   // 必需（ECDSA导入需指定hash）
+            {"namedCurve", ""},
+            {"hash", ""}
         }},
         {"ECDH", {
             {"name", ""},
             {"namedCurve", ""}
         }},
-        // 现代椭圆曲线公钥（SPKI格式）
+
         {"Ed25519", {
             {"name", ""}
         }},
         {"X25519", {
             {"name", ""}
         }},
-        // HKDF（SPKI格式）- 基于公钥的密钥派生
+
+        {"AES-GCM", {
+            {"name", ""},
+            {"length", ""}
+        }},
+
+        {"ChaCha20-Poly1305", {
+            {"name", ""}
+        }},
+
         {"HKDF", {
-            {"name", ""},                  // 必需：算法名称
-            {"hash", ""},                  // 必需：哈希算法
-            {"salt", "a"},                 // 可选：盐值，值为'a'
-            {"info", "a"}                  // 可选：上下文信息，值为'a'
+            {"name", ""},
+            {"hash", ""},
+            {"salt", "a"},
+            {"info", "a"}
         }},
-        // 新增：PBKDF2（SPKI格式）- 基于公钥的密码派生
+
         {"PBKDF2", {
-            {"name", ""},                  // 必需：算法名称
-            {"hash", ""},                  // 必需：哈希算法
-            {"salt", ""},                  // 必需：盐值
-            {"iterations", ""},            // 必需：迭代次数
-            {"length", "a"},               // 可选：派生密钥长度，值为'a'
-            {"info", "a"}                  // 可选：上下文信息，值为'a'
-        }},
-        // ChaCha20-Poly1305无公钥，无需添加
+            {"name", ""},
+            {"hash", ""},
+            {"salt", ""},
+            {"iterations", ""},
+            {"length", "a"},
+            {"info", "a"}
+        }}
     }},
 
-        // -------------------------- jwk 格式（JSON Web Key） --------------------------
+
+        {"spki", {
+
+            {"RSA-OAEP", {
+                {"name", ""},
+                {"hash", ""}
+            }},
+            {"RSA-PSS", {
+                {"name", ""},
+                {"hash", ""}
+            }},
+            {"RSASSA-PKCS1-v1_5", {
+                {"name", ""},
+                {"hash", ""}
+            }},
+
+        {"ECDSA", {
+            {"name", ""},
+            {"namedCurve", ""},
+            {"hash", ""}
+        }},
+        {"ECDH", {
+            {"name", ""},
+            {"namedCurve", ""}
+        }},
+
+        {"Ed25519", {
+            {"name", ""}
+        }},
+        {"X25519", {
+            {"name", ""}
+        }},
+
+        {"HKDF", {
+            {"name", ""},
+            {"hash", ""},
+            {"salt", "a"},
+            {"info", "a"}
+        }},
+
+        {"PBKDF2", {
+            {"name", ""},
+            {"hash", ""},
+            {"salt", ""},
+            {"iterations", ""},
+            {"length", "a"},
+            {"info", "a"}
+        }},
+
+    }},
+
+
         {"jwk", {
-            // AES 密钥（JWK格式）
+
             {"AES-GCM", {
-                {"name", ""},      // 必需：算法名称
-                {"length", ""}     // 必需：密钥长度（匹配JWK的k值长度）
+                {"name", ""},
+                {"length", ""}
             }},
             {"AES-CBC", {
                 {"name", ""},
@@ -7707,38 +7790,38 @@ namespace cjs {
                 {"name", ""},
                 {"length", ""}
             }},
-        // ChaCha20-Poly1305（JWK格式）
+
         {"ChaCha20-Poly1305", {
-            {"name", ""}  // 仅需name，密钥长度固定256位
+            {"name", ""}
         }},
-        // HMAC 密钥（JWK格式）
+
         {"HMAC", {
             {"name", ""},
-            {"hash", ""}           // 必需：哈希算法
+            {"hash", ""}
         }},
-        // HKDF（JWK格式）- JWK中HKDF的标准配置
+
         {"HKDF", {
-            {"name", ""},          // 必需：算法名称
-            {"hash", ""},          // 必需：哈希算法（匹配JWK的hash值）
-            {"salt", "a"},         // 可选：盐值（对应JWK的salt参数），值为'a'
-            {"info", "a"},         // 可选：上下文信息（对应JWK的info参数），值为'a'
-            {"ext", "a"}           // 可选：是否提取阶段（JWK扩展字段），值为'a'
+            {"name", ""},
+            {"hash", ""},
+            {"salt", "a"},
+            {"info", "a"},
+            {"ext", "a"}
         }},
-        // 新增：PBKDF2（JWK格式）
+
         {"PBKDF2", {
-            {"name", ""},          // 必需：算法名称
-            {"hash", ""},          // 必需：哈希算法
-            {"salt", ""},          // 必需：盐值
-            {"iterations", ""},    // 必需：迭代次数
-            {"length", "a"},       // 可选：派生密钥长度，值为'a'
-            {"info", "a"},         // 可选：上下文信息，值为'a'
-            {"prf", "a"}           // 可选：伪随机函数，值为'a'
+            {"name", ""},
+            {"hash", ""},
+            {"salt", ""},
+            {"iterations", ""},
+            {"length", "a"},
+            {"info", "a"},
+            {"prf", "a"}
         }},
-        // RSA 密钥（JWK格式）
+
         {"RSA-OAEP", {
             {"name", ""},
-            {"hash", ""},          // 必需：哈希算法
-            {"label", "a"}         // 可选：标签，值为'a'
+            {"hash", ""},
+            {"label", "a"}
         }},
         {"RSA-PSS", {
             {"name", ""},
@@ -7748,17 +7831,17 @@ namespace cjs {
             {"name", ""},
             {"hash", ""}
         }},
-        // 椭圆曲线密钥（JWK格式）
+
         {"ECDSA", {
             {"name", ""},
-            {"namedCurve", ""},    // 必需：曲线名称（匹配JWK的crv值）
-            {"hash", ""}           // 必需（ECDSA导入需指定hash）
+            {"namedCurve", ""},
+            {"hash", ""}
         }},
         {"ECDH", {
             {"name", ""},
             {"namedCurve", ""}
         }},
-        // 现代椭圆曲线密钥（JWK格式）
+
         {"Ed25519", {
             {"name", ""}
         }},
@@ -7768,77 +7851,77 @@ namespace cjs {
     }}
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedExportAlgorithm = {
-        // -------------------------- raw 格式（二进制原始数据） --------------------------
+
         {"raw", {
-            // AES 对称密钥（raw格式支持）
+
             {"AES-GCM", ""},
             {"AES-CBC", ""},
             {"AES-CTR", ""},
             {"AES-KW", ""},
-            // ChaCha20-Poly1305（raw格式支持）
+
             {"ChaCha20-Poly1305", ""},
-            // HMAC 密钥（raw格式支持）
+
             {"HMAC", ""},
-            // 新增：HKDF（raw格式支持）
+
             {"HKDF", ""},
-            // 新增：PBKDF2（raw格式支持）
+
             {"PBKDF2", ""}
         }},
 
-        // -------------------------- pkcs8 格式（私钥，ASN.1编码） --------------------------
+
         {"pkcs8", {
-            // RSA 私钥（pkcs8格式支持）
+
             {"RSA-OAEP", ""},
             {"RSA-PSS", ""},
             {"RSASSA-PKCS1-v1_5", ""},
-            // 椭圆曲线私钥（pkcs8格式支持）
+
             {"ECDSA", ""},
             {"ECDH", ""},
             {"Ed25519", ""},
             {"X25519", ""},
-            // 新增：HKDF（pkcs8格式支持）
+
             {"HKDF", ""},
-            // 新增：PBKDF2（pkcs8格式支持）
+
             {"PBKDF2", ""}
         }},
 
-        // -------------------------- spki 格式（公钥，ASN.1编码） --------------------------
+
         {"spki", {
-            // RSA 公钥（spki格式支持）
+
             {"RSA-OAEP", ""},
             {"RSA-PSS", ""},
             {"RSASSA-PKCS1-v1_5", ""},
-            // 椭圆曲线公钥（spki格式支持）
+
             {"ECDSA", ""},
             {"ECDH", ""},
             {"Ed25519", ""},
             {"X25519", ""},
-            // 新增：HKDF（spki格式支持）
+
             {"HKDF", ""},
-            // 新增：PBKDF2（spki格式支持）
+
             {"PBKDF2", ""}
         }},
 
-        // -------------------------- jwk 格式（JSON Web Key） --------------------------
+
         {"jwk", {
-            // AES 对称密钥（jwk格式支持）
+
             {"AES-GCM", ""},
             {"AES-CBC", ""},
             {"AES-CTR", ""},
             {"AES-KW", ""},
-            // ChaCha20-Poly1305（jwk格式支持）
+
             {"ChaCha20-Poly1305", ""},
-            // HMAC 密钥（jwk格式支持）
+
             {"HMAC", ""},
-            // 新增：HKDF（jwk格式支持）
+
             {"HKDF", ""},
-            // 新增：PBKDF2（jwk格式支持）
+
             {"PBKDF2", ""},
-            // RSA 密钥（jwk格式支持）
+
             {"RSA-OAEP", ""},
             {"RSA-PSS", ""},
             {"RSASSA-PKCS1-v1_5", ""},
-            // 椭圆曲线密钥（jwk格式支持）
+
             {"ECDSA", ""},
             {"ECDH", ""},
             {"Ed25519", ""},
@@ -7846,8 +7929,8 @@ namespace cjs {
         }}
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedKeyUsagesList = {
-        // -------------------------- 对称加密算法 --------------------------
-        // 对称密钥无公私之分，均为空
+
+
         {"AES-GCM", {
             {"encrypt", ""},
             {"decrypt", ""}
@@ -7871,50 +7954,50 @@ namespace cjs {
             {"unwrapKey", ""}
         }},
 
-        // -------------------------- 非对称加密算法 --------------------------
+
         {"RSA-OAEP", {
-            {"encrypt", "a"},    // 公钥专属：加密
-            {"decrypt", "b"},    // 私钥专属：解密
-            {"wrapKey", "a"},    // 公钥专属：包装密钥
-            {"unwrapKey", "b"}   // 私钥专属：解包密钥
+            {"encrypt", "a"},
+            {"decrypt", "b"},
+            {"wrapKey", "a"},
+            {"unwrapKey", "b"}
         }},
         {"RSA-PSS", {
-            {"sign", "b"},       // 私钥专属：签名
-            {"verify", "a"}      // 公钥专属：验签
+            {"sign", "b"},
+            {"verify", "a"}
         }},
         {"RSASSA-PKCS1-v1_5", {
-            {"sign", "b"},       // 私钥专属：签名
-            {"verify", "a"}      // 公钥专属：验签
+            {"sign", "b"},
+            {"verify", "a"}
         }},
         {"ECDSA", {
-            {"sign", "b"},       // 私钥专属：签名
-            {"verify", "a"}      // 公钥专属：验签
+            {"sign", "b"},
+            {"verify", "a"}
         }},
         {"ECDH", {
-            {"deriveKey", "b"},  // Web Crypto：私钥专属（派生密钥）
-            {"deriveBits", "b"}  // Web Crypto：私钥专属（派生比特流）
+            {"deriveKey", "b"},
+            {"deriveBits", "b"}
         }},
         {"Ed25519", {
-            {"sign", "b"},       // 私钥专属：签名
-            {"verify", "a"}      // 公钥专属：验签
+            {"sign", "b"},
+            {"verify", "a"}
         }},
         {"X25519", {
-            {"deriveKey", "b"},  // Web Crypto：私钥专属（派生密钥）
-            {"deriveBits", "b"}  // Web Crypto：私钥专属（派生比特流）
+            {"deriveKey", "b"},
+            {"deriveBits", "b"}
         }},
 
-        // -------------------------- 哈希/签名/密钥派生算法 --------------------------
+
         {"HMAC", {
             {"sign", ""},
             {"verify", ""}
         }},
         {"HKDF", {
-            {"deriveKey", ""},   // 密钥派生（无公私之分）
-            {"deriveBits", ""}   // 比特流派生（无公私之分）
+            {"deriveKey", ""},
+            {"deriveBits", ""}
         }},
         {"PBKDF2", {
-            {"deriveKey", ""},   // 密钥派生（无公私之分）
-            {"deriveBits", ""}   // 比特流派生（无公私之分）
+            {"deriveKey", ""},
+            {"deriveBits", ""}
         }}
     };
     static std::unordered_map<std::string, std::string> allowedShaName = {
@@ -7941,261 +8024,261 @@ namespace cjs {
         {"secp256k1", ""},
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedEncryptAlgorithm = {
-        // -------------------------- 对称加密 --------------------------
+
         {"AES-GCM", {
-            {"name", ""},                  // 必需：算法名称（如 AES-GCM）
-            {"iv", ""},                    // 必需：初始化向量（12字节推荐，Web Crypto 要求）
-            {"additionalData", "a"},       // 可选：附加认证数据
-            {"tagLength", "a"}             // 可选：认证标签长度（8-128，默认128）
+            {"name", ""},
+            {"iv", ""},
+            {"additionalData", "a"},
+            {"tagLength", "a"}
         }},
         {"AES-CBC", {
-            {"name", ""},                  // 必需：算法名称（如 AES-CBC）
-            {"iv", ""}                     // 必需：初始化向量（16字节，Web Crypto 要求）
+            {"name", ""},
+            {"iv", ""}
         }},
         {"AES-CTR", {
-            {"name", ""},                  // 必需：算法名称（如 AES-CTR）
-            {"iv", ""},                    // 必需：计数器（16字节，Web Crypto 中统一叫 iv）
-            {"counterLength", ""}          // 必需：计数器长度（单位：比特，1-128，通常128，Web Crypto 标准参数）
+            {"name", ""},
+            {"iv", ""},
+            {"counterLength", ""}
         }},
         {"AES-KW", {
-            {"name", ""}                   // 必需：算法名称（如 AES-KW）
+            {"name", ""}
         }},
         {"ChaCha20-Poly1305", {
-            {"name", ""},                  // 必需：算法名称（如 ChaCha20-Poly1305）
-            {"iv", ""},                    // 必需：初始化向量（12字节，Web Crypto 要求）
-            {"additionalData", "a"}        // 可选：附加认证数据
+            {"name", ""},
+            {"iv", ""},
+            {"additionalData", "a"}
         }},
 
-        // -------------------------- 非对称加密/签名 --------------------------
+
         {"RSA-OAEP", {
-            {"name", ""},                  // 必需：算法名称（如 RSA-OAEP）
-            {"label", "a"}                 // 可选：标签数据（Web Crypto 中为可选）
+            {"name", ""},
+            {"label", "a"}
         }},
         {"RSA-PSS", {
-            {"name", ""},                  // 必需：算法名称（如 RSA-PSS）
-            {"saltLength", ""}             // 必需：盐长度（推荐与哈希长度一致，Web Crypto 要求）
+            {"name", ""},
+            {"saltLength", ""}
         }},
         {"RSASSA-PKCS1-v1_5", {
-            {"name", ""}                   // 必需：算法名称（如 RSASSA-PKCS1-v1_5）
+            {"name", ""}
         }},
 
-        // -------------------------- 椭圆曲线签名 --------------------------
+
         {"ECDSA", {
-            {"name", ""},                  // 必需：算法名称（如 ECDSA）
-            {"hash", ""}                   // 必需：哈希算法（如 SHA-256，Web Crypto 要求）
+            {"name", ""},
+            {"hash", ""}
         }},
         {"Ed25519", {
-            {"name", ""}                   // 必需：算法名称（如 Ed25519，无额外参数）
+            {"name", ""}
         }},
 
-        // -------------------------- 密钥派生 --------------------------
+
         {"HKDF", {
-            {"name", ""},                  // 必需：算法名称（如 HKDF）
-            {"hash", ""},                  // 必需：哈希算法（如 SHA-256，Web Crypto 要求）
-            {"salt", "a"},                 // 可选：盐值
-            {"info", ""}                   // 必需：上下文信息（Web Crypto 要求）
+            {"name", ""},
+            {"hash", ""},
+            {"salt", "a"},
+            {"info", ""}
         }},
         {"PBKDF2", {
-            {"name", ""},                  // 必需：算法名称（如 PBKDF2）
-            {"hash", ""},                  // 必需：哈希算法（如 SHA-256，Web Crypto 要求）
-            {"salt", ""},                  // 必需：盐值（Web Crypto 要求）
-            {"iterations", ""},            // 必需：迭代次数（Web Crypto 要求）
-            {"length", "a"}                // 可选：派生密钥长度（默认与哈希输出长度一致）
+            {"name", ""},
+            {"hash", ""},
+            {"salt", ""},
+            {"iterations", ""},
+            {"length", "a"}
         }},
 
-        // -------------------------- HMAC（签名/验证） --------------------------
+
         {"HMAC", {
-            {"name", ""},                  // 必需：算法名称（如 HMAC）
-            {"hash", ""}                   // 必需：哈希算法（如 SHA-256，Web Crypto 要求）
+            {"name", ""},
+            {"hash", ""}
         }}
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedDecryptAlgorithm = {
-        // -------------------------- 对称解密 --------------------------
+
         {"AES-GCM", {
-            {"name", ""},                  // 必需：算法名称（与加密一致）
-            {"iv", ""},                    // 必需：加密时使用的 iv
-            {"additionalData", "a"},       // 可选：加密时使用的附加认证数据
-            {"tagLength", "a"}             // 可选：加密时使用的标签长度
+            {"name", ""},
+            {"iv", ""},
+            {"additionalData", "a"},
+            {"tagLength", "a"}
         }},
         {"AES-CBC", {
-            {"name", ""},                  // 必需：算法名称（与加密一致）
-            {"iv", ""}                     // 必需：加密时使用的 iv
+            {"name", ""},
+            {"iv", ""}
         }},
         {"AES-CTR", {
-            {"name", ""},                  // 必需：算法名称（与加密一致）
-            {"iv", ""},                    // 必需：加密时使用的 iv（原 counter）
-            {"counterLength", ""}          // 必需：加密时使用的计数器长度（原 length）
+            {"name", ""},
+            {"iv", ""},
+            {"counterLength", ""}
         }},
         {"AES-KW", {
-            {"name", ""}                   // 必需：算法名称（与加密一致）
+            {"name", ""}
         }},
         {"ChaCha20-Poly1305", {
-            {"name", ""},                  // 必需：算法名称（与加密一致）
-            {"iv", ""},                    // 必需：加密时使用的 iv
-            {"additionalData", "a"}        // 可选：加密时使用的附加认证数据
+            {"name", ""},
+            {"iv", ""},
+            {"additionalData", "a"}
         }},
 
-        // -------------------------- 非对称解密/验签 --------------------------
+
         {"RSA-OAEP", {
-            {"name", ""},                  // 必需：算法名称（与加密一致）
-            {"label", "a"}                 // 可选：加密时使用的标签数据
+            {"name", ""},
+            {"label", "a"}
         }},
         {"RSA-PSS", {
-            {"name", ""},                  // 必需：算法名称（与签名一致）
-            {"saltLength", ""}             // 必需：签名时使用的盐长度
+            {"name", ""},
+            {"saltLength", ""}
         }},
         {"RSASSA-PKCS1-v1_5", {
-            {"name", ""}                   // 必需：算法名称（与签名一致）
+            {"name", ""}
         }},
 
-        // -------------------------- 椭圆曲线验签 --------------------------
+
         {"ECDSA", {
-            {"name", ""},                  // 必需：算法名称（与签名一致）
-            {"hash", ""}                   // 必需：签名时使用的哈希算法
+            {"name", ""},
+            {"hash", ""}
         }},
         {"Ed25519", {
-            {"name", ""}                   // 必需：算法名称（与签名一致）
+            {"name", ""}
         }},
 
-        // -------------------------- HMAC（验签） --------------------------
+
         {"HMAC", {
-            {"name", ""},                  // 必需：算法名称（与签名一致）
-            {"hash", ""}                   // 必需：签名时使用的哈希算法
+            {"name", ""},
+            {"hash", ""}
         }}
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedSignAlgorithm = {
-        // -------------------------- 非对称签名 --------------------------
+
         {"RSA-PSS", {
-            {"name", ""},                  // 必需：算法名称（如 RSA-PSS）
-            {"saltLength", ""}             // 必需：盐长度（推荐与哈希长度一致，Web Crypto 要求）
+            {"name", ""},
+            {"saltLength", ""}
         }},
         {"RSASSA-PKCS1-v1_5", {
-            {"name", ""}                   // 必需：算法名称（如 RSASSA-PKCS1-v1_5）
+            {"name", ""}
         }},
 
-        // -------------------------- 椭圆曲线签名 --------------------------
+
         {"ECDSA", {
-            {"name", ""},                  // 必需：算法名称（如 ECDSA）
-            {"hash", ""}                   // 必需：哈希算法（如 SHA-256，Web Crypto 要求）
+            {"name", ""},
+            {"hash", ""}
         }},
         {"Ed25519", {
-            {"name", ""}                   // 必需：算法名称（如 Ed25519，无额外参数）
+            {"name", ""}
         }},
 
-        // -------------------------- HMAC（基于哈希的签名） --------------------------
+
         {"HMAC", {
-            {"name", ""},                  // 必需：算法名称（如 HMAC）
-            {"hash", ""}                   // 必需：哈希算法（如 SHA-256，Web Crypto 要求）
+            {"name", ""},
+            {"hash", ""}
         }}
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedVerifyAlgorithm = {
-        // -------------------------- 非对称验签 --------------------------
+
         {"RSA-PSS", {
-            {"name", ""},                  // 必需：算法名称（与签名一致）
-            {"saltLength", ""}             // 必需：签名时使用的盐长度
+            {"name", ""},
+            {"saltLength", ""}
         }},
         {"RSASSA-PKCS1-v1_5", {
-            {"name", ""}                   // 必需：算法名称（与签名一致）
+            {"name", ""}
         }},
 
-        // -------------------------- 椭圆曲线验签 --------------------------
+
         {"ECDSA", {
-            {"name", ""},                  // 必需：算法名称（与签名一致）
-            {"hash", ""}                   // 必需：签名时使用的哈希算法
+            {"name", ""},
+            {"hash", ""}
         }},
         {"Ed25519", {
-            {"name", ""}                   // 必需：算法名称（与签名一致）
+            {"name", ""}
         }},
 
-        // -------------------------- HMAC（验签） --------------------------
+
         {"HMAC", {
-            {"name", ""},                  // 必需：算法名称（与签名一致）
-            {"hash", ""}                   // 必需：签名时使用的哈希算法
+            {"name", ""},
+            {"hash", ""}
         }}
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedWrapAlgorithm = {
-        // -------------------------- 对称密钥包装（Web Crypto 原生支持） --------------------------
+
         {"AES-KW", {
-            {"name", ""}                   // 必需：算法名称（固定为 "AES-KW"）
+            {"name", ""}
         }},
 
-        // -------------------------- 非对称密钥包装（Web Crypto 原生支持） --------------------------
+
         {"RSA-OAEP", {
-            {"name", ""},                  // 必需：算法名称（固定为 "RSA-OAEP"）
-            {"hash", ""},                  // 必需：哈希算法（如 "SHA-256"）
-            {"label", "a"}                 // 可选：额外标签数据，占位符设为 "a"
+            {"name", ""},
+            {"hash", ""},
+            {"label", "a"}
         }},
         {"RSA-PKCS1-v1_5", {
-            {"name", ""}                   // 必需：算法名称（固定为 "RSA-PKCS1-v1_5"）
+            {"name", ""}
         }}
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedUnwrapAlgorithm = {
-        // -------------------------- 对称密钥解包（Web Crypto 原生支持） --------------------------
+
         {"AES-KW", {
-            {"name", ""}                   // 必需：算法名称（与包装时一致）
+            {"name", ""}
         }},
 
-        // -------------------------- 非对称密钥解包（Web Crypto 原生支持） --------------------------
+
         {"RSA-OAEP", {
-            {"name", ""},                  // 必需：算法名称（与包装时一致）
-            {"hash", ""},                  // 必需：包装时使用的哈希算法
-            {"label", "a"}                 // 可选：包装时使用的标签数据，占位符设为 "a"
+            {"name", ""},
+            {"hash", ""},
+            {"label", "a"}
         }},
         {"RSA-PKCS1-v1_5", {
-            {"name", ""}                   // 必需：算法名称（与包装时一致）
+            {"name", ""}
         }}
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedDeriveKeyAlgorithm = {
-        // -------------------------- 基于密码的密钥派生（PBKDF2） --------------------------
+
         {"PBKDF2", {
-            {"name", ""},                  // 必需：算法名称（固定为 "PBKDF2"）
-            {"salt", ""},                  // 必需：随机盐值（二进制数据）
-            {"iterations", ""},            // 必需：迭代次数（如 100000）
-            {"hash", ""},                  // 必需：哈希算法（如 "SHA-256"）
-            {"length", "a"}                // 可选：派生位长度（默认与目标密钥长度一致）
+            {"name", ""},
+            {"salt", ""},
+            {"iterations", ""},
+            {"hash", ""},
+            {"length", "a"}
         }},
 
-        // -------------------------- 椭圆曲线密钥协商（ECDH） --------------------------
+
         {"ECDH", {
-            {"name", ""},                  // 必需：算法名称（固定为 "ECDH"）
-            {"public", ""},                // 必需：对方的 ECDH 公钥（CryptoKey 对象）
-            {"publicKey", ""},                // 必需：对方的 ECDH 公钥（CryptoKey 对象）
-            {"namedCurve", ""}             // 必需：曲线名称（如 "P-256"/"P-384"/"P-521"）
+            {"name", ""},
+            {"public", ""},
+            {"publicKey", ""},
+            {"namedCurve", ""}
         }},
 
-        // -------------------------- 密钥扩展（HKDF） --------------------------
+
         {"HKDF", {
-            {"name", ""},                  // 必需：算法名称（固定为 "HKDF"）
-            {"hash", ""},                  // 必需：哈希算法（如 "SHA-256"）
-            {"salt", "a"},                 // 可选：盐值（二进制数据）
-            {"info", ""}                   // 必需：上下文信息（区分不同用途的派生密钥）
+            {"name", ""},
+            {"hash", ""},
+            {"salt", "a"},
+            {"info", ""}
         }}
     };
     static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> allowedDeriveBitsAlgorithm = {
-        // -------------------------- 基于密码的密钥派生（PBKDF2） --------------------------
+
         {"PBKDF2", {
-            {"name", ""},                  // 必需：算法名称（固定为 "PBKDF2"）
-            {"salt", ""},                  // 必需：随机盐值（二进制数据）
-            {"iterations", ""},            // 必需：迭代次数（如 100000）
-            {"hash", ""},                  // 必需：哈希算法（如 "SHA-256"）
-            {"length", ""}                 // 必需：派生位长度（8的倍数，如 256）
+            {"name", ""},
+            {"salt", ""},
+            {"iterations", ""},
+            {"hash", ""},
+            {"length", ""}
         }},
 
-        // -------------------------- 椭圆曲线密钥协商（ECDH） --------------------------
+
         {"ECDH", {
-            {"name", ""},                  // 必需：算法名称（固定为 "ECDH"）
-            {"public", ""},                // 必需：对方的 ECDH 公钥（CryptoKey 对象）
-            {"publicKey", ""},                // 必需：对方的 ECDH 公钥（CryptoKey 对象）
-            {"namedCurve", ""}             // 必需：曲线名称（如 "P-256"/"P-384"/"P-521"）
+            {"name", ""},
+            {"public", ""},
+            {"publicKey", ""},
+            {"namedCurve", ""}
         }},
 
-        // -------------------------- 密钥扩展（HKDF） --------------------------
+
         {"HKDF", {
-            {"name", ""},                  // 必需：算法名称（固定为 "HKDF"）
-            {"hash", ""},                  // 必需：哈希算法（如 "SHA-256"）
-            {"salt", "a"},                 // 可选：盐值（二进制数据）
-            {"info", ""},                  // 必需：上下文信息（区分不同用途的派生密钥）
-            {"length", ""}                 // 必需：派生位长度（8的倍数，如 256）
+            {"name", ""},
+            {"hash", ""},
+            {"salt", "a"},
+            {"info", ""},
+            {"length", ""}
         }}
     };
     struct RSAJWKDATA {
@@ -8230,10 +8313,10 @@ namespace cjs {
 
         bool isPrivate = false;
 
-        //RSA专有+-
+
         uint64_t modulusLength = 0;
         uint64_t publicExponent = 0;
-        //-+
+
 
     };
     PKDATA GetPKData(BYTEBUFFER_PTR keyBinaryPtr) {
@@ -8435,7 +8518,7 @@ namespace cjs {
 
         size_t keyByteLen = static_cast<size_t>(length / 8);
         if (length % 8 != 0 || (keyByteLen != 16 && keyByteLen != 24 && keyByteLen != 32)) {
-            return false; // AES仅支持16/24/32字节（128/192/256比特）
+            return false;
         }
 
         if (binary->size() != keyByteLen) {
@@ -8814,7 +8897,7 @@ namespace cjs {
             SetAttribute(ctx, global, "global", global);
             AppendMethod(ctx, global, "eval", global_eval);
             AppendMethod(ctx, global, "using", global_using);
-            //AppendMethod(ctx, global, "await", global_await);
+
             AppendMethod(ctx, global, "wait", global_wait);
             AppendMethod(ctx, global, "btoa", global_btoa);
             AppendMethod(ctx, global, "atob", global_atob);
@@ -8823,14 +8906,14 @@ namespace cjs {
             AppendMethod(ctx, global, "clearTimeout", global_clearTimeout);
             AppendMethod(ctx, global, "Blob", NewConstructor(ctx, "Blob", global_Blob));
 
-            //JSV Promise = NewConstructor(ctx, "Promise", global_Promise);
-            //AppendMethod(ctx, global, "Promise", Promise);
-            //AppendMethod(ctx, Promise, "resolve", global_Promise_resolve);
-            //AppendMethod(ctx, Promise, "reject", global_Promise_reject);
-            //AppendMethod(ctx, Promise, "all", global_Promise_all);
-            //AppendMethod(ctx, Promise, "allSettled", global_Promise_allSettled);
-            //AppendMethod(ctx, Promise, "race", global_Promise_race);
-            //AppendMethod(ctx, Promise, "any", global_Promise_any);
+
+
+
+
+
+
+
+
 
             JSV system = NewObject(ctx, global, "system");
             SetSymbolName(ctx, system, "System");
@@ -8846,7 +8929,7 @@ namespace cjs {
             AppendMethod(ctx, console, "log", console_log);
             AppendMethod(ctx, console, "clear", console_clear);
 
-            //运行时修改
+
             JSV document = NewObject(ctx, global, "document");
             SetSymbolName(ctx, document, "Document");
             SetAttribute(ctx, document, "cookie", "");
@@ -16009,7 +16092,7 @@ bytebuffer:
             return fileControllerObject.get(1);
         }
 
-        //////////////////////////////////////////////////////
+
 
         static bool ArrayInsert(JSContext* ctx, JSV array, uint64_t insert_idx, JSV value) {
             if (!JS_IsArray(array.get(0))) return false;
@@ -16208,19 +16291,19 @@ bytebuffer:
                     continue;
                 }
 
-                // 尝试重新定义属性为可配置/可写/可枚举，然后删除
+
                 int define_flags = JS_PROP_CONFIGURABLE | JS_PROP_WRITABLE | JS_PROP_ENUMERABLE;
                 (void)JS_DefineProperty(ctx, jsv, prop_atom, JS_UNDEFINED, JS_UNDEFINED, JS_UNDEFINED, define_flags);
 
-                // 尝试删除属性
+
                 int delete_result = JS_DeleteProperty(ctx, jsv, prop_atom, 0);
 
-                // 删除失败则覆盖值为undefined
+
                 if (delete_result <= 0) {
                     (void)JS_SetProperty(ctx, jsv, prop_atom, JS_UNDEFINED);
                 }
 
-                // 释放原子对象（quickjs-ng要求必须释放获取到的atom）
+
                 JS_FreeAtom(ctx, prop_atom);
             }
 
@@ -16233,7 +16316,7 @@ bytebuffer:
             int check_get_ret = JS_GetOwnPropertyNames(ctx, &check_tab, &check_len, jsv, JS_GPN_ALL);
 
             if (check_get_ret >= 0 && check_tab != nullptr) {
-                // 仅对最终残留的属性（引擎保护的）覆盖值
+
                 for (uint32_t i = 0; i < check_len; ++i) {
                     JSAtom prop_atom = check_tab[i].atom;
                     if (prop_atom != JS_ATOM_NULL) {
@@ -16241,7 +16324,7 @@ bytebuffer:
                         JS_FreeAtom(ctx, prop_atom);
                     }
                 }
-                // 释放二次检查的属性枚举数组（关键修复：原代码遗漏）
+
                 js_free(ctx, check_tab);
             }
 
@@ -16352,7 +16435,7 @@ bytebuffer:
             JSV jfc = JSV(ctx, jsFunc);
             jfc.set(1);
             bool result = AppendMethod(ctx, targetObject, name, jfc, flags);
-            //AppendRelease(ctx, jfc);
+
             return result;
         }
 
@@ -16848,13 +16931,13 @@ bytebuffer:
 
             formData.clear();
 
-            // -------------------------------------------------------------------------
-            // 【核心】自动从请求体开头提取 boundary
-            // 规则：
-            // 1. 以 -- 开头
-            // 2. 后面是任意非换行字符
-            // 3. 到 \r 或 \n 结束
-            // -------------------------------------------------------------------------
+
+
+
+
+
+
+
             size_t pos = 0;
 
             while (pos + 1 < len && !(data[pos] == '-' && data[pos + 1] == '-'))
@@ -16873,16 +16956,16 @@ bytebuffer:
             std::string boundary((const char*)data + boundaryStart, pos - boundaryStart);
             std::string endBoundary = boundary + "--";
 
-            // -------------------------------------------------------------------------
-            // 跳过第一个 boundary 和换行
-            // -------------------------------------------------------------------------
+
+
+
             pos = boundaryStart + boundary.size();
             while (pos < len && (data[pos] == '\r' || data[pos] == '\n'))
                 pos++;
 
-            // -------------------------------------------------------------------------
-            // 循环解析每一段
-            // -------------------------------------------------------------------------
+
+
+
             while (pos < len) {
                 if (pos + endBoundary.size() <= len) {
                     if (memcmp(data + pos, endBoundary.data(), endBoundary.size()) == 0)
@@ -16916,9 +16999,9 @@ bytebuffer:
                 else
                     break;
 
-                // ---------------------------------------------------------------------
-                // 解析 name、filename、Content-Type
-                // ---------------------------------------------------------------------
+
+
+
                 FORMDATAITEM file;
 
                 const char* nameKey = "name=\"";
@@ -17099,7 +17182,7 @@ bytebuffer:
 
             JSV vbuffer = JSV(ctx, &buffer);
             vbuffer.set(1);
-            //AppendRelease(ctx, vbuffer);
+
             return vbuffer;
         }
 
@@ -17263,7 +17346,7 @@ bytebuffer:
 
             JSV vTypeArr = JSV(ctx, &typedArr);
             vTypeArr.set(1);
-            //AppendRelease(ctx, vTypeArr);
+
             return vTypeArr;
         }
 
@@ -19637,7 +19720,7 @@ bytebuffer:
                     else if (curve == "secp256k1") ecParams.Initialize(CryptoPP::ASN1::secp256k1());
                     else return false;
 
-                    // 解析PKCS8 DER私钥
+
                     CryptoPP::SecByteBlock privKeyRaw;
                     {
                         CryptoPP::ByteQueue privQueue;
@@ -19646,19 +19729,19 @@ bytebuffer:
                         try {
                             ecPrivKey.Load(privQueue);
                         }
-                        catch (const CryptoPP::Exception&) { // 消除未引用变量警告
+                        catch (const CryptoPP::Exception&) {
                             derivedKey->clear();
                             return false;
                         }
 
-                        // 无参获取私钥曲线参数
+
                         const CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP>& privEcParams = ecPrivKey.GetGroupParameters();
                         if (!privEcParams.GetCurve().operator==(ecParams.GetCurve())) {
                             derivedKey->clear();
                             return false;
                         }
 
-                        // 提取私钥并标准化长度
+
                         const CryptoPP::Integer& privExponent = ecPrivKey.GetPrivateExponent();
                         size_t fieldSize = ecParams.GetCurve().GetField().GetModulus().ByteCount();
                         privKeyRaw.New(fieldSize);
@@ -19671,7 +19754,6 @@ bytebuffer:
                         privExponent.Encode(privKeyRaw.data() + (fieldSize - privByteCount), privByteCount);
                     }
 
-                    // 解析SPKI DER公钥
                     CryptoPP::SecByteBlock pubKeyRaw;
                     {
                         CryptoPP::ByteQueue pubQueue;
@@ -19680,26 +19762,20 @@ bytebuffer:
                         try {
                             ecPubKey.Load(pubQueue);
                         }
-                        catch (const CryptoPP::Exception&) { // 消除未引用变量警告
+                        catch (const CryptoPP::Exception&) {
                             derivedKey->clear();
                             return false;
                         }
-
-                        // 无参获取公钥曲线参数
                         const CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP>& pubEcParams = ecPubKey.GetGroupParameters();
                         if (!pubEcParams.GetCurve().operator==(ecParams.GetCurve())) {
                             derivedKey->clear();
                             return false;
                         }
-
-                        // 标准化公钥编码
                         const CryptoPP::ECP::Point& pubPoint = ecPubKey.GetPublicElement();
                         const CryptoPP::ECP& curveRef = ecParams.GetCurve();
                         size_t encodedSize = curveRef.EncodedPointSize(false);
                         pubKeyRaw.New(encodedSize);
                         curveRef.EncodePoint(pubKeyRaw.data(), pubPoint, false);
-
-                        // 校验公钥有效性
                         CryptoPP::ECP::Point verifyPoint;
                         if (!curveRef.DecodePoint(verifyPoint, pubKeyRaw.data(), encodedSize) || !curveRef.VerifyPoint(verifyPoint)) {
                             derivedKey->clear();
@@ -19707,7 +19783,6 @@ bytebuffer:
                         }
                     }
 
-                    // ECDH密钥协商
                     using ECDHDomain = CryptoPP::DH_Domain<CryptoPP::DL_GroupParameters_EC<CryptoPP::ECP>>;
                     ECDHDomain ecdhDomain(ecParams);
 
@@ -19723,7 +19798,7 @@ bytebuffer:
                     try {
                         agreeResult = ecdhDomain.Agree(derivedKey->data(), privKeyRaw, pubKeyRaw);
                     }
-                    catch (const CryptoPP::DL_BadElement&) { // 消除未引用变量警告
+                    catch (const CryptoPP::DL_BadElement&) {
                         derivedKey->clear();
                         return false;
                     }
@@ -20480,8 +20555,6 @@ bytebuffer:
     }
 
     bool IsStartByFastCgi() {
-        // 1. 检查FCGX是否初始化（可选）
-        // 2. 检查标准输入是否为套接字（FastCGI特征）
         HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
         if (hStdIn == INVALID_HANDLE_VALUE) return false;
         DWORD fileType = GetFileType(hStdIn);
@@ -20815,19 +20888,12 @@ bytebuffer:
         std::istringstream ss(targetStr);
         std::string method;
         while (std::getline(ss, method, ',')) {
-            // 去除方法名首尾的空白字符（空格、制表符等）
             method.erase(0, method.find_first_not_of(" \t\r\n"));
             method.erase(method.find_last_not_of(" \t\r\n") + 1);
-
-            // 过滤空方法名
             if (method.empty()) {
                 continue;
             }
-
-            // 统一转大写（HTTP方法名标准为大写）
             std::transform(method.begin(), method.end(), method.begin(), ::toupper);
-
-            // 按顺序存入ordered_map（去重：已存在则跳过，保证首次出现的顺序）
             if (allowList.find(method) == allowList.end()) {
                 allowList[method] = method;
             }
