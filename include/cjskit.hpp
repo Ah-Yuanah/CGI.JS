@@ -5630,11 +5630,11 @@ namespace cjs {
             else cleanInput.push_back(c);
         }
         bool isUrlMode = isUrl && (base == 64 || base == 32);
+        size_t padCount = 0;
         if (isUrlMode) {
             padding = 0;
             size_t mod = (base == 64) ? 4 : 8;
-            size_t padNeeded = (mod - (cleanInput.size() % mod)) % mod;
-            cleanInput.insert(cleanInput.end(), padNeeded, '=');
+            padCount = (mod - (cleanInput.size() % mod)) % mod;
         }
         else if ((base == 64 && padding > 2) || (base == 32 && padding > 6) || (base == 16 && padding > 0)) {
             return false;
@@ -5673,7 +5673,9 @@ namespace cjs {
         if (result.empty() && !cleanInput.empty()) result.push_back(0);
 
         if (base == 64 || base == 32) {
-            size_t expectedBytes = (cleanInput.size() * (base == 64 ? 6 : 5)) / 8;
+            size_t totalBits = cleanInput.size() * (base == 64 ? 6 : 5);
+            totalBits -= padCount * (base == 64 ? 6 : 5);
+            size_t expectedBytes = totalBits / 8;
             if (result.size() > expectedBytes) result.resize(expectedBytes);
         }
 
@@ -7902,7 +7904,6 @@ namespace cjs {
         }},
 
         // -------------------------- 哈希/签名/密钥派生算法 --------------------------
-        // HMAC是对称签名，无公私之分，均为空
         {"HMAC", {
             {"sign", ""},
             {"verify", ""}
@@ -7911,7 +7912,6 @@ namespace cjs {
             {"deriveKey", ""},   // 密钥派生（无公私之分）
             {"deriveBits", ""}   // 比特流派生（无公私之分）
         }},
-        // 新增：PBKDF2 密钥用途
         {"PBKDF2", {
             {"deriveKey", ""},   // 密钥派生（无公私之分）
             {"deriveBits", ""}   // 比特流派生（无公私之分）
@@ -14169,7 +14169,7 @@ bytebuffer:
                         return;
                     }
 
-                    if (pkd.name == a_name || (a_name.find("RSA") != std::string::npos && pkd.name == "RSA")) {
+                    if (pkd.name == a_name || (a_name.find("RSA") != std::string::npos && pkd.name == "RSA") || (a_name == "ECDH" && pkd.name == "ECDSA") || (a_name == "ECDSA" && pkd.name == "ECDH")) {
                         if (pkd.modulusLength != 0) {
                             if (pkd.modulusLength >= 1024 && pkd.modulusLength <= 16384 && pkd.modulusLength % 8 == 0) {
                                 SetAttribute(ctx, js_algorithm, "modulusLength", NewNumber(ctx, (double)pkd.modulusLength), 0);
@@ -20807,16 +20807,11 @@ bytebuffer:
     }
     ordered_map<std::string, std::string> GetAcceptAllowList(std::string allowString) {
         const std::string DEFAULT_ALLOW_METHODS = "GET, HEAD, OPTIONS";
-
         ordered_map<std::string, std::string> allowList;
-
-        // 步骤1：处理输入字符串（空值则使用默认）
         std::string targetStr = allowString;
         if (targetStr.empty()) {
             targetStr = DEFAULT_ALLOW_METHODS;
         }
-
-        // 步骤2：拆分逗号分隔的方法，按顺序处理
         std::istringstream ss(targetStr);
         std::string method;
         while (std::getline(ss, method, ',')) {
@@ -20837,12 +20832,9 @@ bytebuffer:
                 allowList[method] = method;
             }
         }
-
-        // 步骤3：如果解析后为空（如输入全是无效字符），返回默认列表
         if (allowList.empty()) {
             allowList = GetAcceptAllowList(DEFAULT_ALLOW_METHODS);
         }
-
         return allowList;
     }
 
