@@ -13609,8 +13609,6 @@ bytebuffer:
                             kty = "oct";
                             jwk[L"kty"] = kty;
                             jwk[L"alg"] = alg;
-                            jwk[L"ext"] = ext;
-                            jwk[L"key_ops"] = key_ops;
                             jwk[L"k"] = k;
                         }
                         else if (name == "ChaCha20-Poly1305") {
@@ -13628,8 +13626,6 @@ bytebuffer:
                             alg = "ChaCha20-Poly1305";
                             jwk[L"kty"] = kty;
                             jwk[L"alg"] = alg;
-                            jwk[L"ext"] = ext;
-                            jwk[L"key_ops"] = key_ops;
                             jwk[L"k"] = k;
                         }
                         else {
